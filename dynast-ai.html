@@ -8,7 +8,7 @@
 </head>
 <body class="min-h-screen bg-black text-white flex flex-col items-center justify-between p-6 select-none">
 
-  <!-- PIN Lock Screen -->
+  <!-- PIN & API Key Setup Screen -->
   <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full max-w-sm">
     <h1 class="text-3xl tracking-[0.35em] font-serif text-amber-400 mb-2">DYNAST</h1>
     <p class="text-xs tracking-widest text-neutral-400 mb-6">PRIVATE COMMAND INTERFACE</p>
@@ -17,11 +17,18 @@
       id="pinInput"
       type="password"
       inputmode="numeric"
-      placeholder="Enter Founder PIN (060709)"
-      class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-4 w-full outline-none focus:border-amber-400"
+      placeholder="Founder PIN (060709)"
+      class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-3 w-full outline-none focus:border-amber-400"
     />
 
-    <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid Founder PIN.</p>
+    <input
+      id="apiKeyInput"
+      type="password"
+      placeholder="Paste Gemini API Key (Saved on Phone)"
+      class="bg-neutral-900 border border-neutral-700 rounded px-4 py-3 text-center text-xs text-white mb-4 w-full outline-none focus:border-amber-400"
+    />
+
+    <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid PIN or missing API Key.</p>
 
     <button
       onclick="unlockDynast()"
@@ -36,6 +43,7 @@
     <div class="text-center mt-2">
       <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
       <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: IDLE</p>
+      <button onclick="resetKey()" class="text-[10px] text-neutral-600 underline mt-1">Reset API Key</button>
     </div>
 
     <!-- Glowing Futuristic Orb -->
@@ -75,20 +83,32 @@
 
   <script>
     const FOUNDER_PIN = "060709";
-    const GEMINI_KEY = "AIzaSyAN3SSticzNH5cwhU9o5Whg@QVbaRALUpg";
     const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
     const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
 
-    document.getElementById("pinInput").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") unlockDynast();
+    window.addEventListener("DOMContentLoaded", () => {
+      const savedKey = localStorage.getItem("DYNAST_GEMINI_KEY");
+      if (savedKey) {
+        document.getElementById("apiKeyInput").value = savedKey;
+        document.getElementById("apiKeyInput").classList.add("hidden");
+      }
     });
 
+    function resetKey() {
+      localStorage.removeItem("DYNAST_GEMINI_KEY");
+      location.reload();
+    }
+
     function unlockDynast() {
-      const val = document.getElementById("pinInput").value.trim();
-      if (val !== FOUNDER_PIN) {
+      const pinVal = document.getElementById("pinInput").value.trim();
+      const keyVal = document.getElementById("apiKeyInput").value.trim();
+
+      if (pinVal !== FOUNDER_PIN || !keyVal) {
         document.getElementById("pinError").classList.remove("hidden");
         return;
       }
+
+      localStorage.setItem("DYNAST_GEMINI_KEY", keyVal);
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
     }
@@ -137,6 +157,7 @@
       if (!commandText.trim()) return;
       setVisualStatus("THINKING");
 
+      const apiKey = localStorage.getItem("DYNAST_GEMINI_KEY");
       const transcriptEl = document.getElementById("transcriptText");
       transcriptEl.textContent = "“" + commandText + "”";
       transcriptEl.classList.remove("hidden");
@@ -173,7 +194,7 @@ Live Watch Stock: ${JSON.stringify(stock)}`;
 
         for (const model of models) {
           const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
