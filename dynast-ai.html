@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DYNAST — Command Interface</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-black text-white flex flex-col items-center justify-between p-6 select-none">
+
+  <!-- PIN Lock Screen -->
+  <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full">
+    <h1 class="text-3xl tracking-[0.35em] font-serif text-amber-400 mb-2">DYNAST</h1>
+    <p class="text-xs tracking-widest text-neutral-400 mb-6">PRIVATE COMMAND INTERFACE</p>
+    <input
+      id="pinInput"
+      type="password"
+      inputmode="numeric"
+      placeholder="Enter Founder PIN"
+      class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-4 w-64 outline-none focus:border-amber-400"
+    />
+    <button
+      onclick="unlockDynast()"
+      class="bg-amber-500 text-black font-semibold px-8 py-2.5 rounded tracking-wider hover:bg-amber-400"
+    >
+      INITIALIZE
+    </button>
+  </div>
+
+  <!-- Main Voice Interface -->
+  <div id="mainScreen" class="hidden min-h-screen w-full flex flex-col items-center justify-between py-6">
+    <div class="text-center mt-2">
+      <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
+      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: IDLE</p>
+    </div>
+
+    <!-- Glowing Futuristic Orb -->
+    <div class="flex flex-col items-center my-6">
+      <button
+        id="orbBtn"
+        onclick="startListening()"
+        class="w-48 h-48 rounded-full flex items-center justify-center border-2 border-amber-500/50 shadow-[0_0_35px_rgba(245,158,11,0.3)] transition-all duration-500 hover:scale-105"
+      >
+        <div class="w-36 h-36 rounded-full bg-gradient-to-tr from-black via-neutral-900 to-amber-500/20 border border-amber-400/30 flex items-center justify-center">
+          <span id="orbLabel" class="text-xs tracking-[0.25em] text-amber-300">TAP TO SPEAK</span>
+        </div>
+      </button>
+
+      <p id="transcriptText" class="text-sm text-neutral-400 italic mt-6 text-center max-w-md hidden"></p>
+
+      <div class="mt-4 max-w-lg bg-neutral-950 border border-amber-500/20 rounded-xl p-5 text-center">
+        <p id="replyText" class="text-amber-100 leading-relaxed">
+          DYNAST systems online. Tap the orb and speak.
+        </p>
+      </div>
+    </div>
+
+    <!-- Text Command Bar -->
+    <form onsubmit="handleTextSubmit(event)" class="w-full max-w-md flex gap-2 mb-2">
+      <input
+        id="textInput"
+        type="text"
+        placeholder="Or type a command to DYNAST..."
+        class="flex-1 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 text-sm text-white outline-none focus:border-amber-500"
+      />
+      <button type="submit" class="bg-amber-500 text-black font-medium px-5 py-3 rounded-lg text-sm">
+        Send
+      </button>
+    </form>
+  </div>
+
+  <script>
+    let savedPin = "";
+
+    document.getElementById("pinInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") unlockDynast();
+    });
+
+    function unlockDynast() {
+      const val = document.getElementById("pinInput").value.trim();
+      if (!val) return;
+      savedPin = val;
+      document.getElementById("lockScreen").classList.add("hidden");
+      document.getElementById("mainScreen").classList.remove("hidden");
+    }
+
+    function setVisualStatus(state) {
+      document.getElementById("statusText").textContent = "STATUS: " + state;
+      const orb = document.getElementById("orbBtn");
+      const label = document.getElementById("orbLabel");
+      orb.className = "w-48 h-48 rounded-full flex items-center justify-center border-2 transition-all duration-500 ";
+
+      if (state === "LISTENING") {
+        orb.className += "border-amber-300 shadow-[0_0_75px_rgba(251,191,36,0.9)] scale-110";
+        label.textContent = "LISTENING";
+      } else if (state === "SPEAKING") {
+        orb.className += "border-amber-400 shadow-[0_0_65px_rgba(245,158,11,0.8)] animate-pulse";
+        label.textContent = "SPEAKING";
+      } else if (state === "THINKING") {
+        orb.className += "border-amber-600 shadow-[0_0_45px_rgba(217,119,6,0.5)] animate-pulse";
+        label.textContent = "THINKING";
+      } else {
+        orb.className += "border-amber-500/50 shadow-[0_0_35px_rgba(245,158,11,0.3)] hover:scale-105";
+        label.textContent = "TAP TO SPEAK";
+      }
+    }
+
+    function speakOutLoud(text) {
+      if (!("speechSynthesis" in window)) {
+        setVisualStatus("IDLE");
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = window.speechSynthesis.getVoices();
+      const preferred =
+        voices.find((v) => v.name.includes("Google UK English Male")) ||
+        voices.find((v) => v.lang.startsWith("en"));
+      if (preferred) utterance.voice = preferred;
+      utterance.rate = 0.98;
+      utterance.pitch = 0.92;
+      utterance.onstart = () => setVisualStatus("SPEAKING");
+      utterance.onend = () => setVisualStatus("IDLE");
+      window.speechSynthesis.speak(utterance);
+    }
+
+    async function sendCommand(commandText) {
+      if (!commandText.trim()) return;
+      setVisualStatus("THINKING");
+
+      const transcriptEl = document.getElementById("transcriptText");
+      transcriptEl.textContent = "“" + commandText + "”";
+      transcriptEl.classList.remove("hidden");
+
+      try {
+        const res = await fetch("/api/dynast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: commandText, pin: savedPin }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          setVisualStatus("IDLE");
+          document.getElementById("replyText").textContent = data.error || "Access denied.";
+          return;
+        }
+
+        document.getElementById("replyText").textContent = data.reply;
+        speakOutLoud(data.reply);
+      } catch (err) {
+        setVisualStatus("IDLE");
+        document.getElementById("replyText").textContent = "Network error reaching DYNAST.";
+      }
+    }
+
+    function handleTextSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById("textInput");
+      const val = input.value;
+      input.value = "";
+      sendCommand(val);
+    }
+
+    function startListening() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Please open this page in Google Chrome for voice commands.");
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-IN";
+      recognition.onstart = () => setVisualStatus("LISTENING");
+      recognition.onresult = (e) => sendCommand(e.results[0][0].transcript);
+      recognition.onerror = () => setVisualStatus("IDLE");
+      recognition.start();
+    }
+  </script>
+</body>
+</html>
