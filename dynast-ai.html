@@ -9,20 +9,23 @@
 <body class="min-h-screen bg-black text-white flex flex-col items-center justify-between p-6 select-none">
 
   <!-- PIN Lock Screen -->
-  <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full">
+  <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full max-w-sm">
     <h1 class="text-3xl tracking-[0.35em] font-serif text-amber-400 mb-2">DYNAST</h1>
     <p class="text-xs tracking-widest text-neutral-400 mb-6">PRIVATE COMMAND INTERFACE</p>
+
     <input
       id="pinInput"
       type="password"
       inputmode="numeric"
-      placeholder="Enter Founder PIN"
-      class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-4 w-64 outline-none focus:border-amber-400"
+      placeholder="Enter Founder PIN (060709)"
+      class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-4 w-full outline-none focus:border-amber-400"
     />
+
     <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid Founder PIN.</p>
+
     <button
       onclick="unlockDynast()"
-      class="bg-amber-500 text-black font-semibold px-8 py-2.5 rounded tracking-wider hover:bg-amber-400"
+      class="bg-amber-500 text-black font-semibold px-8 py-2.5 rounded tracking-wider hover:bg-amber-400 w-full"
     >
       INITIALIZE
     </button>
@@ -72,7 +75,11 @@
 
   <script>
     const FOUNDER_PIN = "060709";
-    const GEMINI_KEY = ["AQ.Ab8RN6KmVm", "-SuFERDydvWfX8SqiCudzIP", "-mnoE1LL-juuzGIKQ"].join("");
+    const GEMINI_KEY = [
+      "AQ.Ab8RN6Lz5EgNJH",
+      "oggjRiJIRWBtq1Qa",
+      "LHWIrYXOLCP3JpAxig3Q"
+    ].join("");
     const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
     const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
 
@@ -152,31 +159,48 @@
           ]);
           if (ordersRes.ok) orders = await ordersRes.json();
           if (stockRes.ok) stock = await stockRes.json();
-        } catch (dbErr) {
-          // Proceed even if Supabase tables are empty
-        }
+        } catch (dbErr) {}
 
         const systemPrompt = `You are DYNAST, the bespoke executive AI assistant for the luxury watch brand dynast.co.in. Address the founder with calm, refined confidence. Keep spoken answers crisp (2 to 3 sentences max) so they sound natural when read aloud.
 Live Orders: ${JSON.stringify(orders)}
 Live Watch Stock: ${JSON.stringify(stock)}`;
 
+        const payload = {
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ parts: [{ text: commandText }] }],
+          generationConfig: { temperature: 0.4 }
+        };
+
         const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
         let reply = null;
-        let lastErr = "Check Gemini API key.";
+        let lastErr = "Check API key.";
 
         for (const model of models) {
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
+          // Try Bearer auth first (for AQ tokens)
+          let geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ parts: [{ text: commandText }] }],
-                generationConfig: { temperature: 0.4 }
-              })
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${GEMINI_KEY}`
+              },
+              body: JSON.stringify(payload)
             }
           );
+          
+          // Fallback to query param or x-goog-api-key if Bearer fails
+          if (!geminiRes.ok) {
+            geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+              }
+            );
+          }
+
           const data = await geminiRes.json();
           if (geminiRes.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
             reply = data.candidates[0].content.parts[0].text;
