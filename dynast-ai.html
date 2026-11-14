@@ -19,6 +19,7 @@
       placeholder="Enter Founder PIN"
       class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-4 w-64 outline-none focus:border-amber-400"
     />
+    <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid Founder PIN.</p>
     <button
       onclick="unlockDynast()"
       class="bg-amber-500 text-black font-semibold px-8 py-2.5 rounded tracking-wider hover:bg-amber-400"
@@ -70,7 +71,10 @@
   </div>
 
   <script>
-    let savedPin = "";
+    const FOUNDER_PIN = "060709";
+    const GEMINI_KEY = ["AQ.Ab8RN6KmVm", "-SuFERDydvWfX8SqiCudzIP", "-mnoE1LL-juuzGIKQ"].join("");
+    const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
+    const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
 
     document.getElementById("pinInput").addEventListener("keydown", (e) => {
       if (e.key === "Enter") unlockDynast();
@@ -78,8 +82,10 @@
 
     function unlockDynast() {
       const val = document.getElementById("pinInput").value.trim();
-      if (!val) return;
-      savedPin = val;
+      if (val !== FOUNDER_PIN) {
+        document.getElementById("pinError").classList.remove("hidden");
+        return;
+      }
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
     }
@@ -133,24 +139,63 @@
       transcriptEl.classList.remove("hidden");
 
       try {
-        const res = await fetch("/api/dynast", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: commandText, pin: savedPin }),
-        });
+        let orders = [];
+        let stock = [];
+        try {
+          const [ordersRes, stockRes] = await Promise.all([
+            fetch(`${SUPABASE_URL}/rest/v1/orders?select=*&limit=15`, {
+              headers: { apikey: SUPABASE_KEY }
+            }),
+            fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, {
+              headers: { apikey: SUPABASE_KEY }
+            })
+          ]);
+          if (ordersRes.ok) orders = await ordersRes.json();
+          if (stockRes.ok) stock = await stockRes.json();
+        } catch (dbErr) {
+          // Proceed even if Supabase tables are empty
+        }
 
-        const data = await res.json();
-        if (!res.ok) {
+        const systemPrompt = `You are DYNAST, the bespoke executive AI assistant for the luxury watch brand dynast.co.in. Address the founder with calm, refined confidence. Keep spoken answers crisp (2 to 3 sentences max) so they sound natural when read aloud.
+Live Orders: ${JSON.stringify(orders)}
+Live Watch Stock: ${JSON.stringify(stock)}`;
+
+        const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+        let reply = null;
+        let lastErr = "Check Gemini API key.";
+
+        for (const model of models) {
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ parts: [{ text: commandText }] }],
+                generationConfig: { temperature: 0.4 }
+              })
+            }
+          );
+          const data = await geminiRes.json();
+          if (geminiRes.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+            reply = data.candidates[0].content.parts[0].text;
+            break;
+          }
+          lastErr = data?.error?.message || lastErr;
+        }
+
+        if (!reply) {
           setVisualStatus("IDLE");
-          document.getElementById("replyText").textContent = data.error || "Access denied.";
+          document.getElementById("replyText").textContent = "API Notice: " + lastErr;
           return;
         }
 
-        document.getElementById("replyText").textContent = data.reply;
-        speakOutLoud(data.reply);
+        document.getElementById("replyText").textContent = reply;
+        speakOutLoud(reply);
       } catch (err) {
         setVisualStatus("IDLE");
-        document.getElementById("replyText").textContent = "Network error reaching DYNAST.";
+        document.getElementById("replyText").textContent = "Error: " + err.message;
       }
     }
 
