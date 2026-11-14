@@ -182,44 +182,27 @@
 Live Orders: ${JSON.stringify(orders)}
 Live Watch Stock: ${JSON.stringify(stock)}`;
 
-        const payload = {
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ parts: [{ text: commandText }] }],
-          generationConfig: { temperature: 0.4 }
-        };
+        // Route request through our new Vercel serverless function proxy (/api/chat)
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            prompt: commandText,
+            systemPrompt: systemPrompt
+          })
+        });
 
-        const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-        let reply = null;
-        let lastErr = "Check token configuration.";
-
-        for (const model of models) {
-          // Send AQ. token as a proper OAuth Bearer token in headers
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`
-              },
-              body: JSON.stringify(payload)
-            }
-          );
-
-          const data = await geminiRes.json();
-          if (geminiRes.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            reply = data.candidates[0].content.parts[0].text;
-            break;
-          }
-          lastErr = data?.error?.message || lastErr;
-        }
-
-        if (!reply) {
+        const data = await response.json();
+        if (!response.ok) {
           setVisualStatus("IDLE");
-          document.getElementById("replyText").textContent = "API Notice: " + lastErr;
+          document.getElementById("replyText").textContent = "API Notice: " + (data.error || "Failed to connect");
           return;
         }
 
+        const reply = data.reply;
         document.getElementById("replyText").textContent = reply;
         speakOutLoud(reply);
       } catch (err) {
