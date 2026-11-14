@@ -1,4 +1,6 @@
 export default async function handler(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -32,7 +34,15 @@ export default async function handler(req, res) {
         }
       );
 
-      const data = await response.json();
+      const textData = await response.text();
+      let data;
+      try {
+        data = JSON.parse(textData);
+      } catch (e) {
+        lastErr = "Invalid JSON response from Google API: " + textData.substring(0, 100);
+        continue;
+      }
+
       if (response.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
         reply = data.candidates[0].content.parts[0].text;
         break;
