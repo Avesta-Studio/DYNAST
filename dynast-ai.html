@@ -24,7 +24,7 @@
     <input
       id="apiKeyInput"
       type="password"
-      placeholder="Paste Gemini API Key (Saved on Phone)"
+      placeholder="Paste AQ. API Key (Saved on Phone)"
       class="bg-neutral-900 border border-neutral-700 rounded px-4 py-3 text-center text-xs text-white mb-4 w-full outline-none focus:border-amber-400"
     />
 
@@ -190,18 +190,34 @@ Live Watch Stock: ${JSON.stringify(stock)}`;
 
         const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
         let reply = null;
-        let lastErr = "Check API key.";
+        let lastErr = "Check API key credentials.";
 
         for (const model of models) {
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          // Send request with Bearer token authentication supporting AQ. tokens
+          let geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`
+              },
               body: JSON.stringify(payload)
             }
           );
-          
+
+          // Fallback mechanism if Bearer fails
+          if (!geminiRes.ok) {
+            geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+              }
+            );
+          }
+
           const data = await geminiRes.json();
           if (geminiRes.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
             reply = data.candidates[0].content.parts[0].text;
