@@ -1,0 +1,57 @@
+module.exports = async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const { command, pin } = body;
+
+    if (!pin || pin !== process.env.DYNAST_ADMIN_PIN) {
+      return res.status(401).json({ error: "Invalid PIN. Access denied." });
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+
+    const [ordersRes, stockRes] = await Promise.all([
+      fetch(
+        `${supabaseUrl}/rest/v1/orders?select=id,customer_name,payment_mode,cod_confirmed,is_bespoke,dial_notes,total_inr,status&order=created_at.desc&limit=15`,
+        { headers: { apikey: supabaseKey } }
+      ),
+      fetch(
+        `${supabaseUrl}/rest/v1/inventory?select=part_name,stock_count,reorder_threshold`,
+        { headers: { apikey: supabaseKey } }
+      ),
+    ]);
+
+    const orders = ordersRes.ok ? await ordersRes.json() : [];
+    const stock = stockRes.ok ? await stockRes.json() : [];
+
+    const systemPrompt = `You are DYNAST, the bespoke executive AI assistant for the luxury watch brand dynast.co.in. Address the founder with calm, refined confidence. Keep spoken answers crisp (2 to 3 sentences max) so they sound natural when read aloud.
+Live Orders: ${JSON.stringify(orders)}
+Live Watch Stock: ${JSON.stringify(stock)}`;
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ parts: [{ text: command }] }],
+          generationConfig: { temperature: 0.4 },
+        }),
+      }
+    );
+
+    const geminiData = await geminiRes.json();
+    const reply =
+      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "DYNAST systems online, Founder. How may I assist?";
+
+    return res.status(200).json({ reply });
+  } catch (err) {
+    return res.status(500).json({ error: "DYNAST encountered a connection issue." });
+  }
+};
