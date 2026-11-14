@@ -24,11 +24,11 @@
     <input
       id="apiKeyInput"
       type="password"
-      placeholder="Paste AQ. API Key (Saved on Phone)"
+      placeholder="Paste AQ. Token Here"
       class="bg-neutral-900 border border-neutral-700 rounded px-4 py-3 text-center text-xs text-white mb-4 w-full outline-none focus:border-amber-400"
     />
 
-    <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid PIN or missing API Key.</p>
+    <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid PIN or missing Token.</p>
 
     <button
       onclick="unlockDynast()"
@@ -43,7 +43,7 @@
     <div class="text-center mt-2">
       <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
       <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: IDLE</p>
-      <button onclick="resetKey()" class="text-[10px] text-neutral-600 underline mt-1">Reset API Key</button>
+      <button onclick="resetKey()" class="text-[10px] text-neutral-600 underline mt-1">Reset Token</button>
     </div>
 
     <!-- Glowing Futuristic Orb -->
@@ -190,11 +190,11 @@ Live Watch Stock: ${JSON.stringify(stock)}`;
 
         const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
         let reply = null;
-        let lastErr = "Check API key credentials.";
+        let lastErr = "Check token configuration.";
 
         for (const model of models) {
-          // Send request with Bearer token authentication supporting AQ. tokens
-          let geminiRes = await fetch(
+          // Send AQ. token as a proper OAuth Bearer token in headers
+          const geminiRes = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             {
               method: "POST",
@@ -205,18 +205,6 @@ Live Watch Stock: ${JSON.stringify(stock)}`;
               body: JSON.stringify(payload)
             }
           );
-
-          // Fallback mechanism if Bearer fails
-          if (!geminiRes.ok) {
-            geminiRes = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-              }
-            );
-          }
 
           const data = await geminiRes.json();
           if (geminiRes.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
