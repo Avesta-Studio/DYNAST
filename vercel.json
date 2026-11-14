@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/dynast.js": {
+      "runtime": "@vercel/node@3"
+    }
+  }
+}
