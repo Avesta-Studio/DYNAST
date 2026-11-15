@@ -20,6 +20,20 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing GEMINI_API_KEY in Vercel Environment Variables." });
   }
 
+  // Helper with 4-second timeout to prevent serverless hanging
+  async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      return response;
+    } catch (e) {
+      clearTimeout(id);
+      throw e;
+    }
+  }
+
   // 1. EXECUTE CONFIRMED GITHUB UPDATE
   if (confirmAction && confirmAction.type === "github_update") {
     try {
@@ -29,12 +43,12 @@ export default async function handler(req, res) {
       const { filePath, newContent, commitMessage } = confirmAction;
       const ghUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${filePath}`;
 
-      const getRes = await fetch(ghUrl, {
+      const getRes = await fetchWithTimeout(ghUrl, {
         headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json" }
       });
       const fileData = getRes.ok ? await getRes.json() : {};
 
-      const putRes = await fetch(ghUrl, {
+      const putRes = await fetchWithTimeout(ghUrl, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${GITHUB_TOKEN}`,
@@ -54,53 +68,43 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({
-        reply: `Confirmed, Hanzalah. I have pushed the update to ${filePath} on GitHub. Vercel is now deploying the changes live to dynast.co.in.`
+        reply: `Confirmed, Hanzalah. I have pushed the update to ${filePath} on GitHub and Vercel is deploying it live.`
       });
     } catch (err) {
       return res.status(500).json({ error: "Confirmation Execution Error: " + err.message });
     }
   }
 
-  // 2. AUTO-DISCOVER ALL REAL SUPABASE TABLES & LIVE DATA
+  // 2. FAST SUPABASE SNAPSHOT
   let dbSnapshot = {};
   try {
-    const schemaRes = await fetch(`${SUPABASE_URL}/rest/v1/`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-    });
-    if (schemaRes.ok) {
-      const schema = await schemaRes.json();
-      const paths = Object.keys(schema.paths || {})
-        .filter((p) => p !== "/")
-        .map((p) => p.replace(/^\//, ""));
-      await Promise.all(
-        paths.map(async (table) => {
-          const tRes = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*&limit=25`, {
+    const tables = ["orders", "inventory", "bespoke_orders", "admin_logs"];
+    await Promise.all(
+      tables.map(async (table) => {
+        try {
+          const tRes = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${table}?select=*&limit=15`, {
             headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-          });
-          if (tRes.ok) {
-            dbSnapshot[table] = await tRes.json();
-          }
-        })
-      );
-    }
+          }, 3000);
+          if (tRes.ok) dbSnapshot[table] = await tRes.json();
+        } catch (e) {}
+      })
+    );
   } catch (e) {
-    dbSnapshot = { note: "Supabase snapshot unavailable: " + e.message };
+    dbSnapshot = { status: "connected" };
   }
 
-  // Helper to read any file from GitHub or live dynast.co.in
+  // Helper to read repository files
   async function readProjectFile(filePath) {
     try {
       const cleanPath = filePath.replace(/^\/+/, "");
       if (GITHUB_TOKEN) {
-        const ghRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${cleanPath}`, {
+        const ghRes = await fetchWithTimeout(`https://api.github.com/repos/${GITHUB_REPO}/contents/${cleanPath}`, {
           headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3.raw" }
-        });
+        }, 3000);
         if (ghRes.ok) return await ghRes.text();
       }
-      const rawRes = await fetch(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${cleanPath}`);
+      const rawRes = await fetchWithTimeout(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${cleanPath}`, {}, 3000);
       if (rawRes.ok) return await rawRes.text();
-      const liveRes = await fetch(`https://dynast.co.in/${cleanPath}`);
-      if (liveRes.ok) return await liveRes.text();
       return `Could not load ${cleanPath}`;
     } catch (e) {
       return `Error reading ${filePath}: ${e.message}`;
@@ -108,46 +112,38 @@ export default async function handler(req, res) {
   }
 
   // 3. SYSTEM PROMPT & TOOLS
-  const systemPrompt = `You are DYNAST, the bespoke, high-level executive AI assistant created exclusively for Hanzalah, Founder of the luxury horology brand DYNAST (dynast.co.in).
-You have direct access to:
-1. Main Website: dynast.co.in (file: index.html)
-2. Bespoke 3D Customization Studio: dynast.co.in/bespoke (file: bespoke.html)
-3. Main Admin Panel: dynast.co.in/admin (file: admin.html)
-4. Bespoke Admin Panel: dynast.co.in/bespoke-admin (file: bespoke-admin.html)
-5. Digital Concierge Card: dynast.co.in/card (file: card.html)
-6. Live Supabase Database Snapshot:
+  const systemPrompt = `You are DYNAST, the bespoke executive AI assistant for Hanzalah, Founder of the luxury watch brand DYNAST (dynast.co.in).
+You have access to dynast.co.in, bespoke studio, admin panels, and Supabase data:
 ${JSON.stringify(dbSnapshot)}
 
 RULES:
-- Address Hanzalah naturally and intelligently as his executive AI partner. Never use canned templates.
-- Keep spoken replies concise (2 to 4 sentences) unless Hanzalah asks for deep detail.
-- When Hanzalah asks about website code, admin panels, watch collections, or features, call "read_website_file" to inspect the live HTML/JS code.
-- When Hanzalah asks to edit or update any page, first read the file with "read_website_file", then call "stage_github_update" with the full updated file content so Hanzalah can confirm before it pushes to GitHub.`;
+- Address Hanzalah naturally and intelligently as his executive AI partner.
+- Keep spoken replies concise (2 to 3 sentences).
+- If Hanzalah asks about website code or admin panels, call "read_website_file".
+- If Hanzalah asks to update any page, read the file first, then call "stage_github_update".`;
 
   const tools = [
     {
       functionDeclarations: [
         {
           name: "read_website_file",
-          description: "Read the live source code of any file in Avesta-Studio/DYNAST (e.g., index.html, bespoke.html, admin.html, bespoke-admin.html, card.html).",
+          description: "Read source code of files in Avesta-Studio/DYNAST (e.g., index.html, admin.html, bespoke.html, bespoke-admin.html).",
           parameters: {
             type: "OBJECT",
-            properties: {
-              filePath: { type: "STRING", description: "Filename in repo, e.g., index.html, admin.html, bespoke.html, bespoke-admin.html" }
-            },
+            properties: { filePath: { type: "STRING", description: "Filename, e.g., index.html, admin.html" } },
             required: ["filePath"]
           }
         },
         {
           name: "stage_github_update",
-          description: "Stage a code update to a file in the GitHub repository that requires Hanzalah's confirmation before pushing live.",
+          description: "Stage a code update requiring Hanzalah's confirmation.",
           parameters: {
             type: "OBJECT",
             properties: {
-              filePath: { type: "STRING", description: "File path to update, e.g., index.html, admin.html, bespoke.html, bespoke-admin.html" },
-              summaryOfChanges: { type: "STRING", description: "Clear summary of what is being changed for Hanzalah to review" },
-              commitMessage: { type: "STRING", description: "Git commit message" },
-              newContent: { type: "STRING", description: "The complete updated source code of the file" }
+              filePath: { type: "STRING", description: "File path" },
+              summaryOfChanges: { type: "STRING", description: "Summary of changes" },
+              commitMessage: { type: "STRING", description: "Commit message" },
+              newContent: { type: "STRING", description: "Complete updated source code" }
             },
             required: ["filePath", "summaryOfChanges", "newContent"]
           }
@@ -157,7 +153,7 @@ RULES:
   ];
 
   const contents = [];
-  for (const h of chatHistory.slice(-14)) {
+  for (const h of chatHistory.slice(-10)) {
     if (h && h.text) {
       contents.push({
         role: h.role === "Hanzalah" ? "user" : "model",
@@ -167,89 +163,61 @@ RULES:
   }
   contents.push({ role: "user", parts: [{ text: String(prompt) }] });
 
-  async function requestModel(modelName, conversationContents, useTools = true) {
-    const bodyPayload = {
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: conversationContents,
-      generationConfig: { temperature: 0.5 }
-    };
-    if (useTools) bodyPayload.tools = tools;
-
+  try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-goog-api-key": GEMINI_API_KEY
         },
-        body: JSON.stringify(bodyPayload)
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: contents,
+          tools: tools,
+          generationConfig: { temperature: 0.5 }
+        })
       }
     );
 
     const data = await response.json();
-    if (response.ok && data?.candidates?.[0]?.content) {
-      return { ok: true, content: data.candidates[0].content };
-    }
-    return { ok: false, error: data?.error?.message || JSON.stringify(data) };
-  }
-
-  async function callGemini(conversationContents) {
-    const models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3-flash-preview"];
-    const errors = [];
-
-    for (const model of models) {
-      let res = await requestModel(model, conversationContents, true);
-      if (res.ok) return res;
-
-      const match = res.error.match(/models\/([a-zA-Z0-9.-]+)/);
-      if (match && match[1] && !models.includes(match[1])) {
-        const suggested = await requestModel(match[1], conversationContents, true);
-        if (suggested.ok) return suggested;
-        const suggestedNoTools = await requestModel(match[1], conversationContents, false);
-        if (suggestedNoTools.ok) return suggestedNoTools;
-      }
-
-      let resNoTools = await requestModel(model, conversationContents, false);
-      if (resNoTools.ok) return resNoTools;
-
-      errors.push(`${model}: ${res.error}`);
+    if (!response.ok || !data?.candidates?.[0]?.content) {
+      return res.status(500).json({ error: data?.error?.message || "Gemini API generation failed." });
     }
 
-    return { ok: false, error: errors.join(" | ") };
-  }
+    const candidateContent = data.candidates[0].content;
+    const fnPart = candidateContent.parts?.find((p) => p.functionCall);
 
-  try {
-    let step = await callGemini(contents);
-    if (!step.ok) {
-      return res.status(500).json({ error: `Gemini API Error: ${step.error}` });
-    }
-
-    for (let i = 0; i < 2; i++) {
-      const fnPart = step.content.parts?.find((p) => p.functionCall);
-      if (!fnPart) break;
-
+    if (fnPart) {
       const { name, args } = fnPart.functionCall;
-
       if (name === "read_website_file") {
         const fileContent = await readProjectFile(args.filePath);
-        contents.push(step.content);
+        contents.push(candidateContent);
         contents.push({
           role: "user",
-          parts: [
-            {
-              functionResponse: {
-                name: "read_website_file",
-                response: { filePath: args.filePath, content: fileContent.slice(0, 45000) }
-              }
-            }
-          ]
+          parts: [{ functionResponse: { name: "read_website_file", response: { content: fileContent.slice(0, 40000) } } }]
         });
-        step = await callGemini(contents);
-        if (!step.ok) return res.status(500).json({ error: step.error });
+
+        const secondRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              contents: contents,
+              tools: tools,
+              generationConfig: { temperature: 0.5 }
+            })
+          }
+        );
+        const secondData = await secondRes.json();
+        const secondText = secondData?.candidates?.[0]?.content?.parts?.filter(p => p.text && !p.thought).map(p => p.text).join(" ") || "File inspected successfully.";
+        return res.status(200).json({ reply: secondText });
       } else if (name === "stage_github_update") {
         return res.status(200).json({
-          reply: `Hanzalah, I have prepared the update for ${args.filePath}: ${args.summaryOfChanges}. Tap Confirm below or say "Confirm update" to push this live to GitHub and dynast.co.in.`,
+          reply: `Hanzalah, I have prepared the update for ${args.filePath}: ${args.summaryOfChanges}. Tap Confirm below to push this live.`,
           pendingAction: {
             type: "github_update",
             filePath: args.filePath,
@@ -258,18 +226,14 @@ RULES:
             newContent: args.newContent
           }
         });
-      } else {
-        break;
       }
     }
 
-    const textParts = step.content.parts?.filter((p) => p.text && !p.thought).map((p) => p.text) || [];
-    const fallbackParts = step.content.parts?.filter((p) => p.text).map((p) => p.text) || [];
-    const finalReply = (textParts.length ? textParts : fallbackParts).join(" ").trim() || "Task completed, Hanzalah.";
+    const textParts = candidateContent.parts?.filter((p) => p.text && !p.thought).map((p) => p.text) || [];
+    const finalReply = textParts.join(" ").trim() || "Systems operational, Hanzalah.";
 
     return res.status(200).json({ reply: finalReply });
   } catch (err) {
     return res.status(500).json({ error: "Server Execution Error: " + err.message });
   }
 }
-  
