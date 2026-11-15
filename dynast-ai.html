@@ -37,7 +37,6 @@
       <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
       <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: ONLINE (HANZALAH)</p>
 
-      <!-- Quick Ecosystem Status Links & Memory Clear -->
       <div class="flex flex-wrap items-center justify-center gap-2 mt-3 text-[10px] text-neutral-400">
         <a href="https://dynast.co.in" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Main Site</a>
         <a href="https://dynast.co.in/bespoke" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Studio</a>
@@ -108,7 +107,7 @@
     let stagedAction = null;
 
     function saveHistory() {
-      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-20)));
+      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-16)));
     }
 
     function clearHistory() {
@@ -166,11 +165,8 @@
       utterance.pitch = 0.90;
       utterance.onstart = () => setVisualStatus("SPEAKING");
       utterance.onend = () => setVisualStatus("ONLINE");
+      utterance.onerror = () => setVisualStatus("ONLINE");
       window.speechSynthesis.speak(utterance);
-    }
-
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
     }
 
     async function executeConfirmedAction() {
@@ -214,7 +210,6 @@
     async function sendCommand(commandText) {
       if (!commandText.trim()) return;
 
-      // Allow voice confirmation if an update is staged
       const lower = commandText.trim().toLowerCase();
       if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "yes confirm" || lower === "push it")) {
         await executeConfirmedAction();
@@ -226,6 +221,9 @@
       transcriptEl.textContent = "“" + commandText + "”";
       transcriptEl.classList.remove("hidden");
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       try {
         const res = await fetch("/api/dynast", {
           method: "POST",
@@ -233,8 +231,10 @@
           body: JSON.stringify({
             prompt: commandText,
             chatHistory: chatHistory
-          })
+          }),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         const rawText = await res.text();
         let data;
@@ -243,7 +243,7 @@
         } catch (e) {
           setVisualStatus("ONLINE");
           document.getElementById("replyText").textContent =
-            "Server Route Error: /api/dynast returned non-JSON (" + rawText.slice(0, 80) + "). Ensure api/dynast.js uses a dot (.) and not a comma (,).";
+            "Server Error: /api/dynast returned non-JSON (" + rawText.slice(0, 100) + ").";
           return;
         }
 
@@ -267,8 +267,12 @@
         document.getElementById("replyText").textContent = data.reply;
         speakOutLoud(data.reply);
       } catch (err) {
+        clearTimeout(timeoutId);
         setVisualStatus("ONLINE");
-        document.getElementById("replyText").textContent = "Connection Error: " + err.message;
+        document.getElementById("replyText").textContent =
+          err.name === "AbortError"
+            ? "Request timed out after 12 seconds. Tap Send to retry."
+            : "Connection Error: " + err.message;
       }
     }
 
