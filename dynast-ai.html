@@ -18,6 +18,7 @@
       type="password"
       inputmode="numeric"
       placeholder="Founder PIN (060709)"
+      onkeydown="if(event.key === 'Enter') unlockDynast()"
       class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-4 w-full outline-none focus:border-amber-400"
     />
 
@@ -37,12 +38,13 @@
       <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
       <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: ONLINE (HANZALAH)</p>
 
+      <!-- Ecosystem Quick Links -->
       <div class="flex flex-wrap items-center justify-center gap-2 mt-3 text-[10px] text-neutral-400">
-        <a href="https://dynast.co.in" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Main Site</a>
-        <a href="https://dynast.co.in/bespoke" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Studio</a>
-        <a href="https://dynast.co.in/admin" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Admin</a>
-        <a href="https://dynast.co.in/bespoke-admin" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Admin</a>
-        <button onclick="clearHistory()" class="px-2 py-1 rounded bg-neutral-950 border border-red-900/40 text-red-400">Clear Memory</button>
+        <a href="https://dynast.co.in" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Main Site</a>
+        <a href="https://dynast.co.in/bespoke" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Studio</a>
+        <a href="https://dynast.co.in/admin" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Admin</a>
+        <a href="https://dynast.co.in/bespoke-admin" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Admin</a>
+        <button onclick="clearHistory()" class="px-2.5 py-1 rounded bg-neutral-950 border border-red-900/40 text-red-400 hover:border-red-500/60">Clear Memory</button>
       </div>
     </div>
 
@@ -95,7 +97,7 @@
         placeholder="Ask DYNAST or command a website update..."
         class="flex-1 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 text-sm text-white outline-none focus:border-amber-500"
       />
-      <button type="submit" class="bg-amber-500 text-black font-medium px-5 py-3 rounded-lg text-sm">
+      <button type="submit" class="bg-amber-500 text-black font-medium px-5 py-3 rounded-lg text-sm hover:bg-amber-400">
         Send
       </button>
     </form>
@@ -107,12 +109,14 @@
     let stagedAction = null;
 
     function saveHistory() {
-      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-16)));
+      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-12)));
     }
 
     function clearHistory() {
       chatHistory = [];
+      stagedAction = null;
       localStorage.removeItem("DYNAST_CHAT_MEMORY");
+      document.getElementById("confirmBox").classList.add("hidden");
       document.getElementById("replyText").textContent = "Session memory cleared, Hanzalah.";
     }
 
@@ -169,6 +173,10 @@
       window.speechSynthesis.speak(utterance);
     }
 
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+
     async function executeConfirmedAction() {
       if (!stagedAction) return;
       setVisualStatus("THINKING");
@@ -222,7 +230,7 @@
       transcriptEl.classList.remove("hidden");
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       try {
         const res = await fetch("/api/dynast", {
@@ -271,7 +279,7 @@
         setVisualStatus("ONLINE");
         document.getElementById("replyText").textContent =
           err.name === "AbortError"
-            ? "Request timed out after 12 seconds. Tap Send to retry."
+            ? "Server took longer than 30 seconds to respond. Please tap Send again."
             : "Connection Error: " + err.message;
       }
     }
