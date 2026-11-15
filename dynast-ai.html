@@ -11,7 +11,7 @@
   <!-- PIN Screen -->
   <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full max-w-sm">
     <h1 class="text-3xl tracking-[0.35em] font-serif text-amber-400 mb-2">DYNAST</h1>
-    <p class="text-xs tracking-widest text-neutral-400 mb-6">FOUNDER INTERFACE (HANZALAH)</p>
+    <p class="text-xs tracking-widest text-neutral-400 mb-6">FOUNDER COMMAND (HANZALAH)</p>
 
     <input
       id="pinInput"
@@ -32,30 +32,59 @@
   </div>
 
   <!-- Main Voice Interface -->
-  <div id="mainScreen" class="hidden min-h-screen w-full flex flex-col items-center justify-between py-6">
-    <div class="text-center mt-2">
+  <div id="mainScreen" class="hidden min-h-screen w-full flex flex-col items-center justify-between py-4">
+    <div class="text-center w-full max-w-md">
       <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
-      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: AI LINKED (FOUNDER: HANZALAH)</p>
+      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: ONLINE (HANZALAH)</p>
+
+      <!-- Quick Ecosystem Status Links & Memory Clear -->
+      <div class="flex flex-wrap items-center justify-center gap-2 mt-3 text-[10px] text-neutral-400">
+        <a href="https://dynast.co.in" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Main Site</a>
+        <a href="https://dynast.co.in/bespoke" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Studio</a>
+        <a href="https://dynast.co.in/admin" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Admin</a>
+        <a href="https://dynast.co.in/bespoke-admin" target="_blank" class="px-2 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Admin</a>
+        <button onclick="clearHistory()" class="px-2 py-1 rounded bg-neutral-950 border border-red-900/40 text-red-400">Clear Memory</button>
+      </div>
     </div>
 
     <!-- Glowing Futuristic Orb -->
-    <div class="flex flex-col items-center my-6">
+    <div class="flex flex-col items-center my-4 w-full max-w-lg">
       <button
         id="orbBtn"
         onclick="startListening()"
-        class="w-48 h-48 rounded-full flex items-center justify-center border-2 border-amber-500/50 shadow-[0_0_35px_rgba(245,158,11,0.3)] transition-all duration-500 hover:scale-105"
+        class="w-44 h-44 rounded-full flex items-center justify-center border-2 border-amber-500/50 shadow-[0_0_35px_rgba(245,158,11,0.3)] transition-all duration-500 hover:scale-105"
       >
-        <div class="w-36 h-36 rounded-full bg-gradient-to-tr from-black via-neutral-900 to-amber-500/20 border border-amber-400/30 flex items-center justify-center">
+        <div class="w-32 h-32 rounded-full bg-gradient-to-tr from-black via-neutral-900 to-amber-500/20 border border-amber-400/30 flex items-center justify-center">
           <span id="orbLabel" class="text-xs tracking-[0.25em] text-amber-300">TAP TO SPEAK</span>
         </div>
       </button>
 
-      <p id="transcriptText" class="text-sm text-neutral-400 italic mt-6 text-center max-w-md hidden"></p>
+      <p id="transcriptText" class="text-sm text-neutral-400 italic mt-5 text-center max-w-md hidden"></p>
 
-      <div class="mt-4 max-w-lg bg-neutral-950 border border-amber-500/20 rounded-xl p-5 text-center">
-        <p id="replyText" class="text-amber-100 leading-relaxed">
-          Welcome back, Hanzalah. Neural intelligence link established. Tap the orb and speak.
+      <div class="mt-4 w-full bg-neutral-950 border border-amber-500/20 rounded-xl p-5 text-center">
+        <p id="replyText" class="text-amber-100 leading-relaxed text-sm whitespace-pre-line">
+          Welcome back, Hanzalah. DYNAST neural link is connected to dynast.co.in, your admin panels, Supabase, and GitHub.
         </p>
+      </div>
+
+      <!-- Staged GitHub Update Confirmation Box -->
+      <div id="confirmBox" class="hidden mt-4 w-full bg-amber-950/20 border border-amber-500/60 rounded-xl p-4 text-center">
+        <p class="text-xs uppercase tracking-widest text-amber-400 font-semibold mb-1">Pending Website Update</p>
+        <p id="confirmDetails" class="text-xs text-neutral-300 mb-3"></p>
+        <div class="flex gap-3 justify-center">
+          <button
+            onclick="executeConfirmedAction()"
+            class="bg-amber-500 text-black font-semibold px-4 py-2 rounded text-xs tracking-wider hover:bg-amber-400"
+          >
+            CONFIRM & PUSH TO GITHUB
+          </button>
+          <button
+            onclick="cancelStagedAction()"
+            class="bg-neutral-800 text-neutral-300 px-4 py-2 rounded text-xs hover:bg-neutral-700"
+          >
+            CANCEL
+          </button>
+        </div>
       </div>
     </div>
 
@@ -64,7 +93,7 @@
       <input
         id="textInput"
         type="text"
-        placeholder="Type a command to DYNAST..."
+        placeholder="Ask DYNAST or command a website update..."
         class="flex-1 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 text-sm text-white outline-none focus:border-amber-500"
       />
       <button type="submit" class="bg-amber-500 text-black font-medium px-5 py-3 rounded-lg text-sm">
@@ -75,11 +104,18 @@
 
   <script>
     const FOUNDER_PIN = "060709";
-    const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
-    const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
+    let chatHistory = JSON.parse(localStorage.getItem("DYNAST_CHAT_MEMORY") || "[]");
+    let stagedAction = null;
 
-    // Full session memory array maintaining chat context for Hanzalah
-    let chatHistory = [];
+    function saveHistory() {
+      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-20)));
+    }
+
+    function clearHistory() {
+      chatHistory = [];
+      localStorage.removeItem("DYNAST_CHAT_MEMORY");
+      document.getElementById("replyText").textContent = "Session memory cleared, Hanzalah.";
+    }
 
     function unlockDynast() {
       const pinVal = document.getElementById("pinInput").value.trim();
@@ -92,10 +128,10 @@
     }
 
     function setVisualStatus(state) {
-      document.getElementById("statusText").textContent = "STATUS: " + state + " (FOUNDER: HANZALAH)";
+      document.getElementById("statusText").textContent = "STATUS: " + state + " (HANZALAH)";
       const orb = document.getElementById("orbBtn");
       const label = document.getElementById("orbLabel");
-      orb.className = "w-48 h-48 rounded-full flex items-center justify-center border-2 transition-all duration-500 ";
+      orb.className = "w-44 h-44 rounded-full flex items-center justify-center border-2 transition-all duration-500 ";
 
       if (state === "LISTENING") {
         orb.className += "border-amber-300 shadow-[0_0_75px_rgba(251,191,36,0.9)] scale-110";
@@ -123,6 +159,7 @@
       const preferred =
         voices.find((v) => v.name.includes("Google UK English Male")) ||
         voices.find((v) => v.name.includes("Natural") || v.name.includes("Enhanced")) ||
+        voices.find((v) => v.lang.startsWith("en-GB")) ||
         voices.find((v) => v.lang.startsWith("en"));
       if (preferred) utterance.voice = preferred;
       utterance.rate = 0.96;
@@ -132,56 +169,106 @@
       window.speechSynthesis.speak(utterance);
     }
 
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+
+    async function executeConfirmedAction() {
+      if (!stagedAction) return;
+      setVisualStatus("THINKING");
+      document.getElementById("confirmBox").classList.add("hidden");
+
+      try {
+        const res = await fetch("/api/dynast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmAction: stagedAction })
+        });
+        const data = await res.json();
+        stagedAction = null;
+
+        if (!res.ok || data.error) {
+          setVisualStatus("ONLINE");
+          document.getElementById("replyText").textContent = "Error: " + (data.error || "Failed to push update.");
+          return;
+        }
+
+        chatHistory.push({ role: "DYNAST", text: data.reply });
+        saveHistory();
+        document.getElementById("replyText").textContent = data.reply;
+        speakOutLoud(data.reply);
+      } catch (err) {
+        setVisualStatus("ONLINE");
+        document.getElementById("replyText").textContent = "Network Error: " + err.message;
+      }
+    }
+
+    function cancelStagedAction() {
+      stagedAction = null;
+      document.getElementById("confirmBox").classList.add("hidden");
+      const msg = "Staged website update cancelled, Hanzalah.";
+      document.getElementById("replyText").textContent = msg;
+      speakOutLoud(msg);
+    }
+
     async function sendCommand(commandText) {
       if (!commandText.trim()) return;
-      setVisualStatus("THINKING");
 
+      // Allow voice confirmation if an update is staged
+      const lower = commandText.trim().toLowerCase();
+      if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "yes confirm" || lower === "push it")) {
+        await executeConfirmedAction();
+        return;
+      }
+
+      setVisualStatus("THINKING");
       const transcriptEl = document.getElementById("transcriptText");
       transcriptEl.textContent = "“" + commandText + "”";
       transcriptEl.classList.remove("hidden");
 
       try {
-        let orders = [];
-        let stock = [];
-        try {
-          const [ordersRes, stockRes] = await Promise.all([
-            fetch(`${SUPABASE_URL}/rest/v1/orders?select=*&limit=15`, {
-              headers: { apikey: SUPABASE_KEY }
-            }),
-            fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, {
-              headers: { apikey: SUPABASE_KEY }
-            })
-          ]);
-          if (ordersRes.ok) orders = await ordersRes.json();
-          if (stockRes.ok) stock = await stockRes.json();
-        } catch (dbErr) {}
-
-        // Send prompt, live data, and chat memory to our serverless AI bridge
-        const res = await fetch('/api/dynast', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/api/dynast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: commandText,
-            chatHistory: chatHistory,
-            liveOrders: orders,
-            liveStock: stock
+            chatHistory: chatHistory
           })
         });
 
-        const data = await res.json();
-        const reply = data.reply || `Hanzalah, systems are active and synced.`;
+        const rawText = await res.text();
+        let data;
+        try {
+          data = JSON.parse(rawText);
+        } catch (e) {
+          setVisualStatus("ONLINE");
+          document.getElementById("replyText").textContent =
+            "Server Route Error: /api/dynast returned non-JSON (" + rawText.slice(0, 80) + "). Ensure api/dynast.js uses a dot (.) and not a comma (,).";
+          return;
+        }
 
-        // Save conversation turn into memory
+        if (!res.ok || data.error) {
+          setVisualStatus("ONLINE");
+          document.getElementById("replyText").textContent = data.error;
+          return;
+        }
+
+        if (data.pendingAction) {
+          stagedAction = data.pendingAction;
+          document.getElementById("confirmDetails").textContent =
+            `File: ${stagedAction.filePath} — ${stagedAction.summaryOfChanges}`;
+          document.getElementById("confirmBox").classList.remove("hidden");
+        }
+
         chatHistory.push({ role: "Hanzalah", text: commandText });
-        chatHistory.push({ role: "DYNAST", text: reply });
+        chatHistory.push({ role: "DYNAST", text: data.reply });
+        saveHistory();
 
-        document.getElementById("replyText").textContent = reply;
-        speakOutLoud(reply);
+        document.getElementById("replyText").textContent = data.reply;
+        speakOutLoud(data.reply);
       } catch (err) {
         setVisualStatus("ONLINE");
-        const fallback = `Hanzalah, connection stable. Reviewing your command: "${commandText}".`;
-        document.getElementById("replyText").textContent = fallback;
-        speakOutLoud(fallback);
+        document.getElementById("replyText").textContent = "Connection Error: " + err.message;
       }
     }
 
