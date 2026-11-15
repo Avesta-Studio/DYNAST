@@ -78,7 +78,6 @@
     const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
     const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
 
-    // Memory array to retain previous chatting context during the session
     let chatHistory = [];
 
     function unlockDynast() {
@@ -154,18 +153,19 @@
         if (ordersRes.ok) orders = await ordersRes.json();
         if (stockRes.ok) stock = await stockRes.json();
 
-        // Push current prompt to memory
         chatHistory.push({ role: "Hanzalah", text: commandText });
 
         const query = commandText.toLowerCase();
         let reply = "";
 
-        // Intelligent conversational logic recalling Hanzalah and past chat turns
-        if (query.includes("my name") || query.includes("who am i")) {
-          reply = "You are Hanzalah, the founder and creator of DYNAST luxury horology.";
+        // Precision keyword routing
+        if (query.includes("what is your name") || query.includes("who are you")) {
+          reply = "I am DYNAST, your executive luxury horology AI assistant.";
+        } else if (query.includes("my name") || query.includes("who am i")) {
+          reply = "You are Hanzalah, the founder and creator of DYNAST.";
         } else if (query.includes("history") || query.includes("previous") || query.includes("we talked")) {
           const recentTopics = chatHistory.slice(-4).map(h => h.text).join(", ");
-          reply = `Hanzalah, in our recent conversation session, we discussed: ${recentTopics}.`;
+          reply = `Hanzalah, in our recent conversation session, we touched upon: ${recentTopics}.`;
         } else if (query.includes("order") || query.includes("sales")) {
           reply = orders.length > 0 
             ? `Hanzalah, you have ${orders.length} orders logged in your Supabase database.` 
@@ -177,18 +177,16 @@
         } else if (query.includes("hello") || query.includes("hi") || query.includes("hey")) {
           reply = `Welcome back, Hanzalah. DYNAST custom watch studio systems are fully operational.`;
         } else {
-          // Contextual reply recalling prior context
-          reply = `Noted, Hanzalah. Regarding "${commandText}": I've logged this into our session memory. Supabase currently has ${orders.length} orders and ${stock.length} inventory items active.`;
+          reply = `Understood, Hanzalah. Regarding "${commandText}": I've logged it into our session. Supabase currently has ${orders.length} orders and ${stock.length} inventory items active.`;
         }
 
-        // Push assistant response to history memory
         chatHistory.push({ role: "DYNAST", text: reply });
 
         document.getElementById("replyText").textContent = reply;
         speakOutLoud(reply);
       } catch (err) {
         setVisualStatus("ONLINE");
-        const fallbackReply = `Hanzalah, I processed "${commandText}". Studio link is stable and ready.`;
+        const fallbackReply = `Hanzalah, I processed "${commandText}". Studio link is stable.`;
         document.getElementById("replyText").textContent = fallbackReply;
         speakOutLoud(fallbackReply);
       }
