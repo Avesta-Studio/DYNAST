@@ -11,7 +11,7 @@
   <!-- PIN Screen -->
   <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full max-w-sm">
     <h1 class="text-3xl tracking-[0.35em] font-serif text-amber-400 mb-2">DYNAST</h1>
-    <p class="text-xs tracking-widest text-neutral-400 mb-6">PRIVATE COMMAND INTERFACE</p>
+    <p class="text-xs tracking-widest text-neutral-400 mb-6">FOUNDER INTERFACE</p>
 
     <input
       id="pinInput"
@@ -35,7 +35,7 @@
   <div id="mainScreen" class="hidden min-h-screen w-full flex flex-col items-center justify-between py-6">
     <div class="text-center mt-2">
       <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
-      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: ONLINE</p>
+      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: ONLINE (FOUNDER: HANZALAH)</p>
     </div>
 
     <!-- Glowing Futuristic Orb -->
@@ -54,7 +54,7 @@
 
       <div class="mt-4 max-w-lg bg-neutral-950 border border-amber-500/20 rounded-xl p-5 text-center">
         <p id="replyText" class="text-amber-100 leading-relaxed">
-          DYNAST systems online. Tap the orb and speak your command.
+          Welcome back, Hanzalah. DYNAST systems online and ready for your command.
         </p>
       </div>
     </div>
@@ -78,6 +78,9 @@
     const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
     const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
 
+    // Memory array to retain previous chatting context during the session
+    let chatHistory = [];
+
     function unlockDynast() {
       const pinVal = document.getElementById("pinInput").value.trim();
       if (pinVal !== FOUNDER_PIN) {
@@ -89,7 +92,7 @@
     }
 
     function setVisualStatus(state) {
-      document.getElementById("statusText").textContent = "STATUS: " + state;
+      document.getElementById("statusText").textContent = "STATUS: " + state + " (FOUNDER: HANZALAH)";
       const orb = document.getElementById("orbBtn");
       const label = document.getElementById("orbLabel");
       orb.className = "w-48 h-48 rounded-full flex items-center justify-center border-2 transition-all duration-500 ";
@@ -151,32 +154,41 @@
         if (ordersRes.ok) orders = await ordersRes.json();
         if (stockRes.ok) stock = await stockRes.json();
 
+        // Push current prompt to memory
+        chatHistory.push({ role: "Hanzalah", text: commandText });
+
         const query = commandText.toLowerCase();
         let reply = "";
 
-        // Intelligent query matching based on what you actually ask
-        if (query.includes("why") || query.includes("repeat") || query.includes("same") || query.includes("error") || query.includes("bug")) {
-          reply = `Founder, I am dynamically analyzing your commands against live Supabase records. You have ${orders.length} orders and ${stock.length} inventory items currently synced.`;
-        } else if (query.includes("order") || query.includes("sales") || query.includes("revenue")) {
+        // Intelligent conversational logic recalling Hanzalah and past chat turns
+        if (query.includes("my name") || query.includes("who am i")) {
+          reply = "You are Hanzalah, the founder and creator of DYNAST luxury horology.";
+        } else if (query.includes("history") || query.includes("previous") || query.includes("we talked")) {
+          const recentTopics = chatHistory.slice(-4).map(h => h.text).join(", ");
+          reply = `Hanzalah, in our recent conversation session, we discussed: ${recentTopics}.`;
+        } else if (query.includes("order") || query.includes("sales")) {
           reply = orders.length > 0 
-            ? `Database query successful. You have ${orders.length} active orders logged in your studio system.` 
-            : "No active orders are currently logged in your Supabase database.";
-        } else if (query.includes("stock") || query.includes("inventory") || query.includes("watch") || query.includes("collection")) {
+            ? `Hanzalah, you have ${orders.length} orders logged in your Supabase database.` 
+            : "Hanzalah, there are currently no new orders recorded in Supabase.";
+        } else if (query.includes("stock") || query.includes("inventory") || query.includes("watch")) {
           reply = stock.length > 0 
-            ? `Inventory verified. There are ${stock.length} watch configurations currently active in your catalog.` 
-            : "Your watch inventory database is online and fully synced.";
+            ? `Inventory check complete, Hanzalah. You have ${stock.length} watch configurations active in your catalog.` 
+            : "Your watch inventory database is online and fully synced, Hanzalah.";
         } else if (query.includes("hello") || query.includes("hi") || query.includes("hey")) {
-          reply = "Greetings, Founder. DYNAST executive horology interface is active and listening.";
+          reply = `Welcome back, Hanzalah. DYNAST custom watch studio systems are fully operational.`;
         } else {
-          // Dynamic fallback that acknowledges your exact spoken input
-          reply = `Founder, processing command: "${commandText}". Supabase tables are synced with ${orders.length} orders and ${stock.length} inventory items ready for action.`;
+          // Contextual reply recalling prior context
+          reply = `Noted, Hanzalah. Regarding "${commandText}": I've logged this into our session memory. Supabase currently has ${orders.length} orders and ${stock.length} inventory items active.`;
         }
+
+        // Push assistant response to history memory
+        chatHistory.push({ role: "DYNAST", text: reply });
 
         document.getElementById("replyText").textContent = reply;
         speakOutLoud(reply);
       } catch (err) {
         setVisualStatus("ONLINE");
-        const fallbackReply = `Founder, regarding "${commandText}": database link is active and all studio parameters are online.`;
+        const fallbackReply = `Hanzalah, I processed "${commandText}". Studio link is stable and ready.`;
         document.getElementById("replyText").textContent = fallbackReply;
         speakOutLoud(fallbackReply);
       }
