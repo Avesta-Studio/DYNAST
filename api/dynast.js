@@ -20,7 +20,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing GEMINI_API_KEY in Vercel Environment Variables." });
   }
 
-  // Helper with 4-second timeout to prevent serverless hanging
   async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -93,7 +92,6 @@ export default async function handler(req, res) {
     dbSnapshot = { status: "connected" };
   }
 
-  // Helper to read repository files
   async function readProjectFile(filePath) {
     try {
       const cleanPath = filePath.replace(/^\/+/, "");
@@ -111,7 +109,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // 3. SYSTEM PROMPT & TOOLS
   const systemPrompt = `You are DYNAST, the bespoke executive AI assistant for Hanzalah, Founder of the luxury watch brand DYNAST (dynast.co.in).
 You have access to dynast.co.in, bespoke studio, admin panels, and Supabase data:
 ${JSON.stringify(dbSnapshot)}
@@ -165,7 +162,7 @@ RULES:
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`,
       {
         method: "POST",
         headers: {
@@ -200,7 +197,7 @@ RULES:
         });
 
         const secondRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
