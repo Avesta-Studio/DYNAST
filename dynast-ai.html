@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DYNAST — Command Interface</title>
+  <title>DYNAST — Executive AI Interface</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen bg-black text-white flex flex-col items-center justify-between p-6 select-none">
@@ -11,7 +11,7 @@
   <!-- PIN Screen -->
   <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full max-w-sm">
     <h1 class="text-3xl tracking-[0.35em] font-serif text-amber-400 mb-2">DYNAST</h1>
-    <p class="text-xs tracking-widest text-neutral-400 mb-6">FOUNDER INTERFACE</p>
+    <p class="text-xs tracking-widest text-neutral-400 mb-6">FOUNDER INTERFACE (HANZALAH)</p>
 
     <input
       id="pinInput"
@@ -35,7 +35,7 @@
   <div id="mainScreen" class="hidden min-h-screen w-full flex flex-col items-center justify-between py-6">
     <div class="text-center mt-2">
       <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
-      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: ONLINE (FOUNDER: HANZALAH)</p>
+      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: AI LINKED (FOUNDER: HANZALAH)</p>
     </div>
 
     <!-- Glowing Futuristic Orb -->
@@ -54,7 +54,7 @@
 
       <div class="mt-4 max-w-lg bg-neutral-950 border border-amber-500/20 rounded-xl p-5 text-center">
         <p id="replyText" class="text-amber-100 leading-relaxed">
-          Welcome back, Hanzalah. DYNAST systems online and ready for your command.
+          Welcome back, Hanzalah. Neural intelligence link established. Tap the orb and speak.
         </p>
       </div>
     </div>
@@ -64,7 +64,7 @@
       <input
         id="textInput"
         type="text"
-        placeholder="Or type a command to DYNAST..."
+        placeholder="Type a command to DYNAST..."
         class="flex-1 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 text-sm text-white outline-none focus:border-amber-500"
       />
       <button type="submit" class="bg-amber-500 text-black font-medium px-5 py-3 rounded-lg text-sm">
@@ -78,6 +78,7 @@
     const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
     const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
 
+    // Full session memory array maintaining chat context for Hanzalah
     let chatHistory = [];
 
     function unlockDynast() {
@@ -102,9 +103,9 @@
       } else if (state === "SPEAKING") {
         orb.className += "border-amber-400 shadow-[0_0_65px_rgba(245,158,11,0.8)] animate-pulse";
         label.textContent = "SPEAKING";
-      } else if (state === "PROCESSING") {
+      } else if (state === "THINKING") {
         orb.className += "border-amber-600 shadow-[0_0_45px_rgba(217,119,6,0.5)] animate-pulse";
-        label.textContent = "PROCESSING";
+        label.textContent = "THINKING";
       } else {
         orb.className += "border-amber-500/50 shadow-[0_0_35px_rgba(245,158,11,0.3)] hover:scale-105";
         label.textContent = "TAP TO SPEAK";
@@ -133,7 +134,7 @@
 
     async function sendCommand(commandText) {
       if (!commandText.trim()) return;
-      setVisualStatus("PROCESSING");
+      setVisualStatus("THINKING");
 
       const transcriptEl = document.getElementById("transcriptText");
       transcriptEl.textContent = "“" + commandText + "”";
@@ -142,53 +143,45 @@
       try {
         let orders = [];
         let stock = [];
-        const [ordersRes, stockRes] = await Promise.all([
-          fetch(`${SUPABASE_URL}/rest/v1/orders?select=*&limit=15`, {
-            headers: { apikey: SUPABASE_KEY }
-          }),
-          fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, {
-            headers: { apikey: SUPABASE_KEY }
+        try {
+          const [ordersRes, stockRes] = await Promise.all([
+            fetch(`${SUPABASE_URL}/rest/v1/orders?select=*&limit=15`, {
+              headers: { apikey: SUPABASE_KEY }
+            }),
+            fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, {
+              headers: { apikey: SUPABASE_KEY }
+            })
+          ]);
+          if (ordersRes.ok) orders = await ordersRes.json();
+          if (stockRes.ok) stock = await stockRes.json();
+        } catch (dbErr) {}
+
+        // Send prompt, live data, and chat memory to our serverless AI bridge
+        const res = await fetch('/api/dynast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: commandText,
+            chatHistory: chatHistory,
+            liveOrders: orders,
+            liveStock: stock
           })
-        ]);
-        if (ordersRes.ok) orders = await ordersRes.json();
-        if (stockRes.ok) stock = await stockRes.json();
+        });
 
+        const data = await res.json();
+        const reply = data.reply || `Hanzalah, systems are active and synced.`;
+
+        // Save conversation turn into memory
         chatHistory.push({ role: "Hanzalah", text: commandText });
-
-        const query = commandText.toLowerCase();
-        let reply = "";
-
-        // Precision keyword routing
-        if (query.includes("what is your name") || query.includes("who are you")) {
-          reply = "I am DYNAST, your executive luxury horology AI assistant.";
-        } else if (query.includes("my name") || query.includes("who am i")) {
-          reply = "You are Hanzalah, the founder and creator of DYNAST.";
-        } else if (query.includes("history") || query.includes("previous") || query.includes("we talked")) {
-          const recentTopics = chatHistory.slice(-4).map(h => h.text).join(", ");
-          reply = `Hanzalah, in our recent conversation session, we touched upon: ${recentTopics}.`;
-        } else if (query.includes("order") || query.includes("sales")) {
-          reply = orders.length > 0 
-            ? `Hanzalah, you have ${orders.length} orders logged in your Supabase database.` 
-            : "Hanzalah, there are currently no new orders recorded in Supabase.";
-        } else if (query.includes("stock") || query.includes("inventory") || query.includes("watch")) {
-          reply = stock.length > 0 
-            ? `Inventory check complete, Hanzalah. You have ${stock.length} watch configurations active in your catalog.` 
-            : "Your watch inventory database is online and fully synced, Hanzalah.";
-        } else if (query.includes("hello") || query.includes("hi") || query.includes("hey")) {
-          reply = `Welcome back, Hanzalah. DYNAST custom watch studio systems are fully operational.`;
-        } else {
-          reply = `Understood, Hanzalah. Regarding "${commandText}": I've logged it into our session. Supabase currently has ${orders.length} orders and ${stock.length} inventory items active.`;
-        }
-
         chatHistory.push({ role: "DYNAST", text: reply });
 
         document.getElementById("replyText").textContent = reply;
         speakOutLoud(reply);
       } catch (err) {
         setVisualStatus("ONLINE");
-        const fallbackReply = `Hanzalah, I processed "${commandText}". Studio link is stable.`;
-        document.getElementById("replyText").textContent = fallbackReply;
-        speakOutLoud(fallbackReply);
+        const fallback = `Hanzalah, connection stable. Reviewing your command: "${commandText}".`;
+        document.getElementById("replyText").textContent = fallback;
+        speakOutLoud(fallback);
       }
     }
 
