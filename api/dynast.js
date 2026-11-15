@@ -21,8 +21,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing GEMINI_API_KEY in Vercel Environment Variables." });
   }
 
-  // Strict timeout wrapper so no network call can ever hang Vercel
-  async function fetchWithTimeout(url, options = {}, timeoutMs = 2000) {
+  async function fetchFast(url, options = {}, timeoutMs = 2000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -35,24 +34,24 @@ export default async function handler(req, res) {
     }
   }
 
-  // 1. EXECUTE CONFIRMED GITHUB WEBSITE UPDATE
+  // 1. EXECUTE CONFIRMED GITHUB UPDATE
   if (confirmAction && confirmAction.type === "github_update") {
     try {
       if (!GITHUB_TOKEN) {
         return res.status(400).json({ error: "Missing GITHUB_TOKEN in Vercel Environment Variables." });
       }
       const { filePath, newContent, commitMessage } = confirmAction;
-      const cleanPath = String(filePath || "index.html").replace(/^\/+/, "");
+      const cleanPath = filePath.replace(/^\/+/, "");
       const ghUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${cleanPath}`;
 
-      const getRes = await fetchWithTimeout(
+      const getRes = await fetchFast(
         ghUrl,
         { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json" } },
-        3500
+        4000
       );
       const fileData = getRes.ok ? await getRes.json() : {};
 
-      const putRes = await fetchWithTimeout(
+      const putRes = await fetchFast(
         ghUrl,
         {
           method: "PUT",
@@ -67,7 +66,7 @@ export default async function handler(req, res) {
             sha: fileData.sha
           })
         },
-        4500
+        5000
       );
 
       if (!putRes.ok) {
@@ -76,19 +75,16 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({
-        reply: `Done, Hanzalah. I have committed the update to ${cleanPath} on GitHub, and Vercel is now deploying it live to dynast.co.in.`
+        reply: `Confirmed, Hanzalah. I have pushed the update to ${cleanPath} on GitHub and Vercel is deploying it live.`
       });
     } catch (err) {
       return res.status(500).json({ error: "GitHub Update Error: " + err.message });
     }
   }
 
-  // 2. SMART INTENT ROUTING (Only fetch Supabase or GitHub when relevant to the prompt)
+  // 2. ONLY FETCH SUPABASE OR GITHUB CODE WHEN THE COMMAND ACTUALLY NEEDS IT
   const lowerPrompt = String(prompt).toLowerCase();
-
-  const needsDatabase = /(order|stock|inventory|database|supabase|table|sale|customer|revenue| bespoke_order|log)/i.test(
-    lowerPrompt
-  );
+  const needsDatabase = /(order|stock|inventory|database|table|supabase|sale|customer|log|status|check)/.test(lowerPrompt);
 
   let targetFile = null;
   if (lowerPrompt.includes("bespoke-admin") || lowerPrompt.includes("bespoke admin")) {
@@ -99,104 +95,83 @@ export default async function handler(req, res) {
     targetFile = "bespoke.html";
   } else if (lowerPrompt.includes("card")) {
     targetFile = "card.html";
-  } else if (/(index\.html|website|main site|homepage|update|edit|change|code|section|hero|footer)/i.test(lowerPrompt)) {
+  } else if (/(index|website|main site|homepage|update|edit|change|code)/.test(lowerPrompt)) {
     targetFile = "index.html";
   }
 
-  async function getFastSupabaseData() {
+  async function getSupabaseData() {
     if (!needsDatabase) return null;
-    const dbData = {};
+    const snapshot = {};
     try {
-      const schemaRes = await fetchWithTimeout(
+      const schemaRes = await fetchFast(
         `${SUPABASE_URL}/rest/v1/`,
-        { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
-        1500
+        { headers: { apikey: SUPABASE_KEY } },
+        1800
       );
       if (schemaRes.ok) {
         const schema = await schemaRes.json();
         const tables = Object.keys(schema.paths || {})
           .filter((p) => p !== "/")
           .map((p) => p.replace(/^\//, ""));
-        dbData.discoveredTables = tables;
+        snapshot.tables = tables;
 
         await Promise.all(
-          tables.slice(0, 5).map(async (table) => {
+          tables.slice(0, 4).map(async (t) => {
             try {
-              const tRes = await fetchWithTimeout(
-                `${SUPABASE_URL}/rest/v1/${table}?select=*&limit=10`,
-                { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
-                1200
+              const r = await fetchFast(
+                `${SUPABASE_URL}/rest/v1/${t}?select=*&limit=10`,
+                { headers: { apikey: SUPABASE_KEY } },
+                1500
               );
-              if (tRes.ok) dbData[table] = await tRes.json();
+              if (r.ok) snapshot[t] = await r.json();
             } catch (e) {}
           })
         );
       }
-    } catch (e) {
-      dbData.note = "Supabase query skipped due to timeout";
-    }
-    return dbData;
+    } catch (e) {}
+    return snapshot;
   }
 
-  async function getFastGithubFile(filePath) {
-    if (!filePath) return null;
+  async function getGithubFile(file) {
+    if (!file) return null;
     try {
       if (GITHUB_TOKEN) {
-        const ghRes = await fetchWithTimeout(
-          `https://api.github.com/repos/${GITHUB_REPO}/contents/${filePath}`,
+        const r = await fetchFast(
+          `https://api.github.com/repos/${GITHUB_REPO}/contents/${file}`,
           { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3.raw" } },
-          1800
+          2000
         );
-        if (ghRes.ok) return await ghRes.text();
+        if (r.ok) return await r.text();
       }
-      const rawRes = await fetchWithTimeout(
-        `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${filePath}`,
-        {},
-        1800
-      );
-      if (rawRes.ok) return await rawRes.text();
+      const raw = await fetchFast(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${file}`, {}, 2000);
+      if (raw.ok) return await raw.text();
     } catch (e) {}
     return null;
   }
 
-  const [dbSnapshot, fileSourceCode] = await Promise.all([
-    getFastSupabaseData(),
-    getFastGithubFile(targetFile)
+  const [dbData, fileCode] = await Promise.all([
+    getSupabaseData(),
+    getGithubFile(targetFile)
   ]);
 
-  // 3. EXECUTIVE SYSTEM PROMPT
-  let contextAddendum = "";
-  if (dbSnapshot) {
-    contextAddendum += `\nLIVE SUPABASE DATA:\n${JSON.stringify(dbSnapshot)}`;
-  }
-  if (fileSourceCode) {
-    contextAddendum += `\nLIVE SOURCE CODE OF ${targetFile}:\n${fileSourceCode.slice(0, 28000)}`;
-  }
-
-  const systemPrompt = `You are DYNAST, the ultra-capable, Jarvis-level executive AI partner and full-stack intelligence for Hanzalah, Founder of the luxury horology brand DYNAST (dynast.co.in).
-You have full authority to assist Hanzalah with anything: horology, business strategy, coding, general knowledge, calculations, and managing his web ecosystem:
+  const systemPrompt = `You are DYNAST, the elite executive AI assistant for Hanzalah, Founder of the luxury watch brand DYNAST (dynast.co.in).
+You oversee:
 - Main Storefront: dynast.co.in (index.html)
-- 3D Bespoke Studio: dynast.co.in/bespoke (bespoke.html)
+- Bespoke 3D Studio: dynast.co.in/bespoke (bespoke.html)
 - Main Admin Panel: dynast.co.in/admin (admin.html)
 - Bespoke Admin Panel: dynast.co.in/bespoke-admin (bespoke-admin.html)
-- NFC Concierge Card: dynast.co.in/card (card.html)
-${contextAddendum}
+- Digital Concierge Card: dynast.co.in/card (card.html)
+${dbData ? `\nLIVE SUPABASE DATA:\n${JSON.stringify(dbData)}` : ""}
+${fileCode ? `\nSOURCE CODE OF ${targetFile}:\n${fileCode.slice(0, 28000)}` : ""}
 
-OPERATING RULES:
-1. Speak to Hanzalah like a sharp, loyal, human-like executive co-founder. Never use robotic or pre-fed templates.
-2. Keep spoken replies natural and concise (2 to 4 sentences) unless Hanzalah asks for detailed code, analysis, or lists.
-3. If Hanzalah asks you to edit or update a website file and the file code is present above, explain the change briefly and append this exact tag at the very end of your response:
-<GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"Brief summary","commitMessage":"Update via DYNAST AI","newContent":"FULL_UPDATED_HTML_CODE"}</GITHUB_UPDATE>`;
+RULES:
+- Address Hanzalah naturally and intelligently as his executive AI partner.
+- Keep spoken replies concise (2 to 3 sentences).
+- If Hanzalah asks to edit or update a website file, include the complete updated code at the end of your reply inside <GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"...","commitMessage":"...","newContent":"..."}</GITHUB_UPDATE>.`;
 
   const contents = [];
-  for (const h of chatHistory.slice(-10)) {
-    if (
-      h &&
-      h.text &&
-      !String(h.text).includes("Gemini API") &&
-      !String(h.text).includes("Request timed out") &&
-      !String(h.text).includes("Server Error")
-    ) {
+  for (const h of chatHistory.slice(-8)) {
+    if (h && h.text && !String(h.text).includes("Error") && !String(h.text).includes("timed out")) {
       contents.push({
         role: h.role === "Hanzalah" ? "user" : "model",
         parts: [{ text: String(h.text) }]
@@ -205,95 +180,61 @@ OPERATING RULES:
   }
   contents.push({ role: "user", parts: [{ text: String(prompt) }] });
 
-  // 4. CALL ACTIVE GEMINI 3.8 FLASH / 3.5 FLASH-LITE MODELS
-  async function callModel(modelName, timeoutMs) {
-    const response = await fetchWithTimeout(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: contents,
-          generationConfig: {
-            temperature: 0.6,
-            maxOutputTokens: targetFile && /(update|edit|change)/i.test(lowerPrompt) ? 8192 : 800
-          }
-        })
-      },
-      timeoutMs
-    );
+  // Use the exact active models supported on your key
+  const models = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-pro-preview"];
+  let lastError = "";
 
-    const data = await response.json();
-    if (response.ok && data?.candidates?.[0]?.content?.parts) {
-      return { ok: true, parts: data.candidates[0].content.parts, model: modelName };
-    }
-    return { ok: false, error: data?.error?.message || JSON.stringify(data) };
-  }
-
-  try {
-    // Primary: gemini-3.8-flash (4.5s budget) -> Instant Fallback: gemini-3.5-flash-lite (3.5s budget) -> Pro Fallback: gemini-3.1-pro-preview
-    const modelChain = [
-      { id: "gemini-3.8-flash", timeout: 4500 },
-      { id: "gemini-3.5-flash-lite", timeout: 3500 },
-      { id: "gemini-3.1-pro-preview", timeout: 4500 }
-    ];
-
-    let finalResult = null;
-    const errorLog = [];
-
-    for (const m of modelChain) {
-      try {
-        const resModel = await callModel(m.id, m.timeout);
-        if (resModel.ok) {
-          finalResult = resModel;
-          break;
-        }
-        errorLog.push(`${m.id}: ${resModel.error}`);
-      } catch (err) {
-        errorLog.push(`${m.id}: ${err.name === "AbortError" ? "Timed out" : err.message}`);
-      }
-    }
-
-    if (!finalResult) {
-      return res.status(500).json({ error: `AI Model Error: ${errorLog.join(" | ")}` });
-    }
-
-    const nonThoughtParts = finalResult.parts.filter((p) => p.text && !p.thought).map((p) => p.text);
-    const rawReply = (nonThoughtParts.length ? nonThoughtParts : finalResult.parts.map((p) => p.text || ""))
-      .join(" ")
-      .trim();
-
-    // Parse staged GitHub update if present
-    const updateMatch = rawReply.match(/<GITHUB_UPDATE>([\s\S]*?)<\/GITHUB_UPDATE>/);
-    if (updateMatch) {
-      try {
-        const parsedUpdate = JSON.parse(updateMatch[1].trim());
-        const spokenReply = rawReply.replace(/<GITHUB_UPDATE>[\s\S]*?<\/GITHUB_UPDATE>/, "").trim();
-        return res.status(200).json({
-          reply:
-            spokenReply ||
-            `Hanzalah, I have staged the code changes for ${parsedUpdate.filePath}. Tap Confirm or say "Confirm" to deploy them live.`,
-          pendingAction: {
-            type: "github_update",
-            filePath: parsedUpdate.filePath,
-            summaryOfChanges: parsedUpdate.summaryOfChanges || "Website code update",
-            commitMessage: parsedUpdate.commitMessage || `Update ${parsedUpdate.filePath}`,
-            newContent: parsedUpdate.newContent
+  for (const model of models) {
+    try {
+      const response = await fetchFast(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY
           },
-          modelUsed: finalResult.model
-        });
-      } catch (e) {}
-    }
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: contents,
+            generationConfig: { temperature: 0.5 }
+          })
+        },
+        7500
+      );
 
-    return res.status(200).json({
-      reply: rawReply || "At your service, Hanzalah.",
-      modelUsed: finalResult.model
-    });
-  } catch (err) {
-    return res.status(500).json({ error: "Execution Error: " + err.message });
+      const data = await response.json();
+      if (response.ok && data?.candidates?.[0]?.content?.parts) {
+        const parts = data.candidates[0].content.parts;
+        const textParts = parts.filter((p) => p.text && !p.thought).map((p) => p.text);
+        const allText = (textParts.length ? textParts : parts.map((p) => p.text || "")).join(" ").trim();
+
+        const updateMatch = allText.match(/<GITHUB_UPDATE>([\s\S]*?)<\/GITHUB_UPDATE>/);
+        if (updateMatch) {
+          try {
+            const parsed = JSON.parse(updateMatch[1].trim());
+            const cleanReply = allText.replace(/<GITHUB_UPDATE>[\s\S]*?<\/GITHUB_UPDATE>/, "").trim();
+            return res.status(200).json({
+              reply: cleanReply || `Hanzalah, I have prepared the update for ${parsed.filePath}. Tap Confirm below to push it live.`,
+              pendingAction: {
+                type: "github_update",
+                filePath: parsed.filePath,
+                summaryOfChanges: parsed.summaryOfChanges || "Website update",
+                commitMessage: parsed.commitMessage || `Update ${parsed.filePath}`,
+                newContent: parsed.newContent
+              }
+            });
+          } catch (e) {}
+        }
+
+        return res.status(200).json({ reply: allText || "Systems online, Hanzalah." });
+      }
+
+      lastError = data?.error?.message || JSON.stringify(data);
+    } catch (err) {
+      lastError = err.name === "AbortError" ? `${model} timed out` : err.message;
+    }
   }
+
+  return res.status(500).json({ error: `Gemini API Error: ${lastError}` });
 }
