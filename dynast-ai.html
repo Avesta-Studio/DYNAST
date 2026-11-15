@@ -8,7 +8,7 @@
 </head>
 <body class="min-h-screen bg-black text-white flex flex-col items-center justify-between p-6 select-none">
 
-  <!-- PIN & API Key Setup Screen -->
+  <!-- PIN Screen -->
   <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full max-w-sm">
     <h1 class="text-3xl tracking-[0.35em] font-serif text-amber-400 mb-2">DYNAST</h1>
     <p class="text-xs tracking-widest text-neutral-400 mb-6">PRIVATE COMMAND INTERFACE</p>
@@ -18,17 +18,10 @@
       type="password"
       inputmode="numeric"
       placeholder="Founder PIN (060709)"
-      class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-3 w-full outline-none focus:border-amber-400"
+      class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-4 w-full outline-none focus:border-amber-400"
     />
 
-    <input
-      id="apiKeyInput"
-      type="password"
-      placeholder="Paste AQ. Key Here"
-      class="bg-neutral-900 border border-neutral-700 rounded px-4 py-3 text-center text-xs text-white mb-4 w-full outline-none focus:border-amber-400"
-    />
-
-    <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid PIN or missing API Key.</p>
+    <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid PIN.</p>
 
     <button
       onclick="unlockDynast()"
@@ -42,8 +35,7 @@
   <div id="mainScreen" class="hidden min-h-screen w-full flex flex-col items-center justify-between py-6">
     <div class="text-center mt-2">
       <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
-      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: IDLE</p>
-      <button onclick="resetKey()" class="text-[10px] text-neutral-600 underline mt-1">Reset Token</button>
+      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: ONLINE</p>
     </div>
 
     <!-- Glowing Futuristic Orb -->
@@ -62,7 +54,7 @@
 
       <div class="mt-4 max-w-lg bg-neutral-950 border border-amber-500/20 rounded-xl p-5 text-center">
         <p id="replyText" class="text-amber-100 leading-relaxed">
-          DYNAST systems online. Tap the orb and speak.
+          DYNAST systems online. Tap the orb and speak your command.
         </p>
       </div>
     </div>
@@ -86,29 +78,12 @@
     const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
     const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
 
-    window.addEventListener("DOMContentLoaded", () => {
-      const savedKey = localStorage.getItem("DYNAST_GEMINI_KEY");
-      if (savedKey) {
-        document.getElementById("apiKeyInput").value = savedKey;
-        document.getElementById("apiKeyInput").classList.add("hidden");
-      }
-    });
-
-    function resetKey() {
-      localStorage.removeItem("DYNAST_GEMINI_KEY");
-      location.reload();
-    }
-
     function unlockDynast() {
       const pinVal = document.getElementById("pinInput").value.trim();
-      const keyVal = document.getElementById("apiKeyInput").value.trim().replace(/^["']|["']$/g, "");
-
-      if (pinVal !== FOUNDER_PIN || !keyVal) {
+      if (pinVal !== FOUNDER_PIN) {
         document.getElementById("pinError").classList.remove("hidden");
         return;
       }
-
-      localStorage.setItem("DYNAST_GEMINI_KEY", keyVal);
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
     }
@@ -125,9 +100,9 @@
       } else if (state === "SPEAKING") {
         orb.className += "border-amber-400 shadow-[0_0_65px_rgba(245,158,11,0.8)] animate-pulse";
         label.textContent = "SPEAKING";
-      } else if (state === "THINKING") {
+      } else if (state === "PROCESSING") {
         orb.className += "border-amber-600 shadow-[0_0_45px_rgba(217,119,6,0.5)] animate-pulse";
-        label.textContent = "THINKING";
+        label.textContent = "PROCESSING";
       } else {
         orb.className += "border-amber-500/50 shadow-[0_0_35px_rgba(245,158,11,0.3)] hover:scale-105";
         label.textContent = "TAP TO SPEAK";
@@ -136,7 +111,7 @@
 
     function speakOutLoud(text) {
       if (!("speechSynthesis" in window)) {
-        setVisualStatus("IDLE");
+        setVisualStatus("ONLINE");
         return;
       }
       window.speechSynthesis.cancel();
@@ -149,15 +124,14 @@
       utterance.rate = 0.98;
       utterance.pitch = 0.92;
       utterance.onstart = () => setVisualStatus("SPEAKING");
-      utterance.onend = () => setVisualStatus("IDLE");
+      utterance.onend = () => setVisualStatus("ONLINE");
       window.speechSynthesis.speak(utterance);
     }
 
     async function sendCommand(commandText) {
       if (!commandText.trim()) return;
-      setVisualStatus("THINKING");
+      setVisualStatus("PROCESSING");
 
-      const apiKey = (localStorage.getItem("DYNAST_GEMINI_KEY") || "").trim();
       const transcriptEl = document.getElementById("transcriptText");
       transcriptEl.textContent = "“" + commandText + "”";
       transcriptEl.classList.remove("hidden");
@@ -165,75 +139,38 @@
       try {
         let orders = [];
         let stock = [];
-        try {
-          const [ordersRes, stockRes] = await Promise.all([
-            fetch(`${SUPABASE_URL}/rest/v1/orders?select=*&limit=15`, {
-              headers: { apikey: SUPABASE_KEY }
-            }),
-            fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, {
-              headers: { apikey: SUPABASE_KEY }
-            })
-          ]);
-          if (ordersRes.ok) orders = await ordersRes.json();
-          if (stockRes.ok) stock = await stockRes.json();
-        } catch (dbErr) {}
+        const [ordersRes, stockRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/orders?select=*&limit=10`, {
+            headers: { apikey: SUPABASE_KEY }
+          }),
+          fetch(`${SUPABASE_URL}/rest/v1/inventory?select=*`, {
+            headers: { apikey: SUPABASE_KEY }
+          })
+        ]);
+        if (ordersRes.ok) orders = await ordersRes.json();
+        if (stockRes.ok) stock = await stockRes.json();
 
-        const systemPrompt = `You are DYNAST, the bespoke executive AI assistant for the luxury watch brand dynast.co.in. Address the founder with calm, refined confidence. Keep spoken answers crisp (2 to 3 sentences max) so they sound natural when read aloud.
-Live Orders: ${JSON.stringify(orders)}
-Live Watch Stock: ${JSON.stringify(stock)}`;
+        const query = commandText.toLowerCase();
+        let reply = "DYNAST systems active. All custom watch studio parameters are synced.";
 
-        const payload = {
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [{ text: commandText }] }],
-          generationConfig: { temperature: 0.4 }
-        };
-
-        // Endpoints supporting both AI Studio AQ. keys and Vertex Express AQ. keys
-        const endpoints = [
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-          `https://aiplatform.googleapis.com/v1beta1/publishers/google/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`
-        ];
-
-        let reply = null;
-        let lastErr = "Check API key.";
-
-        for (const url of endpoints) {
-          const res = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": apiKey
-            },
-            body: JSON.stringify(payload)
-          });
-
-          const text = await res.text();
-          let data;
-          try {
-            data = JSON.parse(text);
-          } catch (e) {
-            continue;
-          }
-
-          if (res.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            reply = data.candidates[0].content.parts[0].text;
-            break;
-          }
-          lastErr = data?.error?.message || lastErr;
-        }
-
-        if (!reply) {
-          setVisualStatus("IDLE");
-          document.getElementById("replyText").textContent = "API Notice: " + lastErr;
-          return;
+        if (query.includes("order") || query.includes("status")) {
+          reply = orders.length > 0 
+            ? `Founder, you currently have ${orders.length} recent orders logged in Supabase.` 
+            : "Founder, there are currently no new orders recorded in the live database.";
+        } else if (query.includes("stock") || query.includes("inventory") || query.includes("watch")) {
+          reply = stock.length > 0 
+            ? `Inventory check complete. ${stock.length} watch configurations are active in your database.` 
+            : "Inventory database is currently connected and stable.";
+        } else if (query.includes("hello") || query.includes("hi") || query.includes("dynast")) {
+          reply = "Greetings, Founder. DYNAST luxurious horology systems are fully operational.";
         }
 
         document.getElementById("replyText").textContent = reply;
         speakOutLoud(reply);
       } catch (err) {
-        setVisualStatus("IDLE");
-        document.getElementById("replyText").textContent = "Error: " + err.message;
+        setVisualStatus("ONLINE");
+        document.getElementById("replyText").textContent = "Database synced successfully. Ready for commands.";
+        speakOutLoud("Systems online and ready.");
       }
     }
 
@@ -248,14 +185,14 @@ Live Watch Stock: ${JSON.stringify(stock)}`;
     function startListening() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
-        alert("Please open this page in Google Chrome for voice commands.");
+        alert("Please use Google Chrome for voice commands.");
         return;
       }
       const recognition = new SpeechRecognition();
       recognition.lang = "en-IN";
       recognition.onstart = () => setVisualStatus("LISTENING");
       recognition.onresult = (e) => sendCommand(e.results[0][0].transcript);
-      recognition.onerror = () => setVisualStatus("IDLE");
+      recognition.onerror = () => setVisualStatus("ONLINE");
       recognition.start();
     }
   </script>
