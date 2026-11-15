@@ -195,14 +195,13 @@ RULES:
   }
 
   async function callGemini(conversationContents) {
-    const models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"];
+    const models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3-flash-preview"];
     const errors = [];
 
     for (const model of models) {
       let res = await requestModel(model, conversationContents, true);
       if (res.ok) return res;
 
-      // If Google's error message suggests a newer model ID (e.g. models/gemini-x.x-flash), try it automatically
       const match = res.error.match(/models\/([a-zA-Z0-9.-]+)/);
       if (match && match[1] && !models.includes(match[1])) {
         const suggested = await requestModel(match[1], conversationContents, true);
@@ -211,7 +210,6 @@ RULES:
         if (suggestedNoTools.ok) return suggestedNoTools;
       }
 
-      // Retry without tools if tool schema was rejected
       let resNoTools = await requestModel(model, conversationContents, false);
       if (resNoTools.ok) return resNoTools;
 
@@ -227,7 +225,6 @@ RULES:
       return res.status(500).json({ error: `Gemini API Error: ${step.error}` });
     }
 
-    // Handle up to 2 sequential tool calls (e.g. read_website_file -> stage_github_update)
     for (let i = 0; i < 2; i++) {
       const fnPart = step.content.parts?.find((p) => p.functionCall);
       if (!fnPart) break;
@@ -266,7 +263,6 @@ RULES:
       }
     }
 
-    // Extract spoken/written text (ignoring internal model thought parts)
     const textParts = step.content.parts?.filter((p) => p.text && !p.thought).map((p) => p.text) || [];
     const fallbackParts = step.content.parts?.filter((p) => p.text).map((p) => p.text) || [];
     const finalReply = (textParts.length ? textParts : fallbackParts).join(" ").trim() || "Task completed, Hanzalah.";
@@ -276,3 +272,4 @@ RULES:
     return res.status(500).json({ error: "Server Execution Error: " + err.message });
   }
 }
+  
