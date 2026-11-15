@@ -7,14 +7,11 @@ export default async function handler(req, res) {
 
   const { prompt, chatHistory, liveOrders, liveStock } = req.body;
 
-  // Build a rich executive system prompt knowing you as Hanzalah and incorporating live data
-  const systemPrompt = `You are DYNAST, the highly intelligent, bespoke executive AI assistant for Hanzalah, the founder of the luxury watch brand dynast.co.in. 
-You possess full intelligence, reasoning, and context awareness. Address Hanzalah with calm, refined confidence. Keep spoken answers crisp (2 to 3 sentences max) so they sound natural when read aloud by text-to-speech.
+  const systemPrompt = `You are DYNAST, the bespoke executive AI assistant for Hanzalah, the founder of the luxury watch brand dynast.co.in. Address Hanzalah with calm, refined confidence. Keep spoken answers crisp (2 to 3 sentences max) so they sound natural when read aloud.
 Founder Name: Hanzalah
 Live Supabase Orders: ${JSON.stringify(liveOrders)}
 Live Watch Inventory: ${JSON.stringify(liveStock)}`;
 
-  // Format full conversation history for true memory continuity
   const contents = [];
   if (Array.isArray(chatHistory)) {
     for (const h of chatHistory) {
@@ -36,7 +33,6 @@ Live Watch Inventory: ${JSON.stringify(liveStock)}`;
   let reply = null;
   let lastErr = "AI generation failed";
 
-  // Use the server's secure execution environment
   for (const model of models) {
     try {
       const response = await fetch(
@@ -45,8 +41,7 @@ Live Watch Inventory: ${JSON.stringify(liveStock)}`;
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // If using standard server key or environment variable
-            "x-goog-api-key": process.env.GEMINI_API_KEY || req.headers.authorization?.replace('Bearer ', '') || ""
+            "x-goog-api-key": process.env.GEMINI_API_KEY || ""
           },
           body: JSON.stringify(payload)
         }
@@ -64,14 +59,8 @@ Live Watch Inventory: ${JSON.stringify(liveStock)}`;
   }
 
   if (!reply) {
-    // Intelligent fallback intelligence if API quota/key is pending
     reply = `Greetings Hanzalah. Supabase sync is active with ${liveOrders.length} orders and ${liveStock.length} watch items. I am fully online to assist with your custom horology studio.`;
   }
 
   return res.status(200).json({ reply });
 }
-
-
-
-
-
