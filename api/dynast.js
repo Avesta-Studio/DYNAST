@@ -6,29 +6,18 @@ export default async function handler(req, res) {
   }
 
   const { prompt, chatHistory, liveOrders, liveStock } = req.body;
-  const SUPABASE_URL = "https://szdfipypoanrcbwaoqdy.supabase.co";
-  const SUPABASE_KEY = ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
+  const apiKey = process.env.GEMINI_API_KEY;
 
-  // Fetch broader ecosystem data from Supabase (admin logs, bespoke configs, products)
-  let adminData = [];
-  let bespokeData = [];
-  try {
-    const [adminRes, bespokeRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/admin_logs?select=*&limit=10`, { headers: { apikey: SUPABASE_KEY } }),
-      fetch(`${SUPABASE_URL}/rest/v1/bespoke_orders?select=*&limit=10`, { headers: { apikey: SUPABASE_KEY } })
-    ]);
-    if (adminRes.ok) adminData = await adminRes.json();
-    if (bespokeRes.ok) bespokeData = await bespokeRes.json();
-  } catch (e) {}
+  if (!apiKey) {
+    return res.status(500).json({ error: "GEMINI_API_KEY environment variable is missing on Vercel." });
+  }
 
   const systemPrompt = `You are DYNAST, the elite executive AI assistant for Hanzalah, the founder of the luxury watch brand dynast.co.in. 
 You oversee the main store (dynast.co.in), the bespoke customization studio (dynast.co.in/bespoke), and administrative dashboards (dynast.co.in/admin & dynast.co.in/bespoke-admin).
 Address Hanzalah with calm, refined confidence. Keep spoken answers crisp (2 to 3 sentences max) so they sound natural when read aloud.
 Founder: Hanzalah
 Live Orders: ${JSON.stringify(liveOrders)}
-Live Inventory: ${JSON.stringify(liveStock)}
-Bespoke Studio Data: ${JSON.stringify(bespokeData)}
-Admin Logs: ${JSON.stringify(adminData)}`;
+Live Inventory: ${JSON.stringify(liveStock)}`;
 
   const contents = [];
   if (Array.isArray(chatHistory)) {
@@ -49,7 +38,7 @@ Admin Logs: ${JSON.stringify(adminData)}`;
 
   const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
   let reply = null;
-  let lastErr = "AI generation failed";
+  let lastErr = "Unknown API error";
 
   for (const model of models) {
     try {
@@ -59,35 +48,27 @@ Admin Logs: ${JSON.stringify(adminData)}`;
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-goog-api-key": process.env.GEMINI_API_KEY || ""
+            "x-goog-api-key": apiKey
           },
           body: JSON.stringify(payload)
         }
       );
 
       const data = await response.json();
+      
       if (response.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
         reply = data.candidates[0].content.parts[0].text;
         break;
+      } else {
+        lastErr = data?.error?.message || JSON.stringify(data);
       }
-      lastErr = data?.error?.message || lastErr;
     } catch (e) {
       lastErr = e.message;
     }
   }
 
-  // Intelligent fallback if model call hits quota/key constraints
   if (!reply) {
-    const q = prompt.toLowerCase();
-    if (q.includes("name") || q.includes("who am i")) {
-      reply = "You are Hanzalah, the founder and master horologist behind DYNAST.";
-    } else if (q.includes("admin") || q.includes("panel")) {
-      reply = `Hanzalah, your admin portals at dynast.co.in/admin and bespoke-admin are linked, tracking ${adminData.length} recent management logs.`;
-    } else if (q.includes("bespoke") || q.includes("studio")) {
-      reply = `The bespoke customization studio at dynast.co.in/bespoke is active with ${bespokeData.length} custom configurations recorded.`;
-    } else {
-      reply = `Hanzalah, dynast.co.in ecosystem is fully synced. I am monitoring your store, bespoke studio, and admin dashboards.`;
-    }
+    return res.status(500).json({ error: "Gemini API Error: " + lastErr });
   }
 
   return res.status(200).json({ reply });
