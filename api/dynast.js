@@ -1,3 +1,191 @@
+import tls from "node:tls";
+import crypto from "node:crypto";
+
+// Direct 24kHz Conversational Male Neural Voice Synthesizer (Zero npm dependencies)
+function synthesizeConversationalMaleVoice(rawText, timeoutMs = 3200) {
+  return new Promise((resolve) => {
+    const cleanSpeech = String(rawText || "")
+      .replace(/[*#_`~>]/g, "")
+      .replace(/\bDYNAST\b/gi, "Dynast")
+      .replace(/https?:\/\/\S+/g, "")
+      .trim()
+      .slice(0, 550);
+
+    if (!cleanSpeech) return resolve(null);
+
+    const escapedText = cleanSpeech
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+    const TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
+    let ticks = Math.floor(Date.now() / 1000) + 11644473600;
+    ticks -= ticks % 300;
+    const secMsGec = crypto
+      .createHash("sha256")
+      .update(`${ticks}0000000${TRUSTED_CLIENT_TOKEN}`, "ascii")
+      .digest("hex")
+      .toUpperCase();
+
+    const connId = crypto.randomUUID().replace(/-/g, "");
+    const reqId = crypto.randomUUID().replace(/-/g, "");
+    const wsKey = crypto.randomBytes(16).toString("base64");
+
+    let settled = false;
+    const audioChunks = [];
+    let rxBuffer = Buffer.alloc(0);
+    let upgraded = false;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        socket.destroy();
+      } catch (e) {}
+      resolve(result);
+    };
+
+    const timer = setTimeout(() => {
+      finish(audioChunks.length ? Buffer.concat(audioChunks).toString("base64") : null);
+    }, timeoutMs);
+
+    function sendWsTextFrame(sock, text) {
+      const payload = Buffer.from(text, "utf8");
+      const len = payload.length;
+      const maskKey = crypto.randomBytes(4);
+      let header;
+
+      if (len < 126) {
+        header = Buffer.alloc(2);
+        header[0] = 0x81;
+        header[1] = 0x80 | len;
+      } else if (len < 65536) {
+        header = Buffer.alloc(4);
+        header[0] = 0x81;
+        header[1] = 0x80 | 126;
+        header.writeUInt16BE(len, 2);
+      } else {
+        header = Buffer.alloc(10);
+        header[0] = 0x81;
+        header[1] = 0x80 | 127;
+        header.writeBigUInt64BE(BigInt(len), 2);
+      }
+
+      const masked = Buffer.alloc(len);
+      for (let i = 0; i < len; i++) {
+        masked[i] = payload[i] ^ maskKey[i % 4];
+      }
+      sock.write(Buffer.concat([header, maskKey, masked]));
+    }
+
+    const socket = tls.connect(
+      {
+        host: "speech.platform.bing.com",
+        port: 443,
+        servername: "speech.platform.bing.com"
+      },
+      () => {
+        const path = `/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}&Sec-MS-GEC=${secMsGec}&Sec-MS-GEC-Version=1-130.0.2849.68&ConnectionId=${connId}`;
+        const upgradeHeaders = [
+          `GET ${path} HTTP/1.1`,
+          `Host: speech.platform.bing.com`,
+          `Upgrade: websocket`,
+          `Connection: Upgrade`,
+          `Pragma: no-cache`,
+          `Cache-Control: no-cache`,
+          `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0`,
+          `Origin: chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold`,
+          `Sec-WebSocket-Version: 13`,
+          `Sec-WebSocket-Key: ${wsKey}`,
+          `\r\n`
+        ].join("\r\n");
+        socket.write(upgradeHeaders);
+      }
+    );
+
+    socket.on("data", (chunk) => {
+      rxBuffer = Buffer.concat([rxBuffer, chunk]);
+
+      if (!upgraded) {
+        const headerEnd = rxBuffer.indexOf("\r\n\r\n");
+        if (headerEnd === -1) return;
+        const statusLine = rxBuffer.subarray(0, headerEnd).toString("utf8");
+        if (!statusLine.includes("101")) {
+          return finish(null);
+        }
+        rxBuffer = rxBuffer.subarray(headerEnd + 4);
+        upgraded = true;
+
+        const configMsg =
+          `X-Timestamp:${new Date().toISOString()}\r\n` +
+          `Content-Type:application/json; charset=utf-8\r\n` +
+          `Path:speech.config\r\n\r\n` +
+          `{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}`;
+
+        // Locked onto en-US-BrianMultilingualNeural (Conversational Gemini-Live style male voice)
+        const ssmlMsg =
+          `X-RequestId:${reqId}\r\n` +
+          `Content-Type:application/ssml+xml\r\n` +
+          `X-Timestamp:${new Date().toISOString()}Z\r\n` +
+          `Path:ssml\r\n\r\n` +
+          `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>` +
+          `<voice name='en-US-BrianMultilingualNeural'>` +
+          `<prosody pitch='+0Hz' rate='+3%' volume='+10%'>${escapedText}</prosody>` +
+          `</voice></speak>`;
+
+        sendWsTextFrame(socket, configMsg);
+        sendWsTextFrame(socket, ssmlMsg);
+      }
+
+      while (rxBuffer.length >= 2) {
+        const opcode = rxBuffer[0] & 0x0f;
+        const isMasked = (rxBuffer[1] & 0x80) !== 0;
+        let payloadLen = rxBuffer[1] & 0x7f;
+        let offset = 2;
+
+        if (payloadLen === 126) {
+          if (rxBuffer.length < 4) return;
+          payloadLen = rxBuffer.readUInt16BE(2);
+          offset = 4;
+        } else if (payloadLen === 127) {
+          if (rxBuffer.length < 10) return;
+          payloadLen = Number(rxBuffer.readBigUInt64BE(2));
+          offset = 10;
+        }
+
+        if (isMasked) offset += 4;
+        if (rxBuffer.length < offset + payloadLen) return;
+
+        const frameData = rxBuffer.subarray(offset, offset + payloadLen);
+        rxBuffer = rxBuffer.subarray(offset + payloadLen);
+
+        if (opcode === 0x02 && frameData.length > 2) {
+          const headerLen = frameData.readUInt16BE(0);
+          const headerStr = frameData.subarray(2, 2 + headerLen).toString("utf8");
+          if (headerStr.includes("Path:audio") && frameData.length > 2 + headerLen) {
+            audioChunks.push(frameData.subarray(2 + headerLen));
+          }
+        } else if (opcode === 0x01) {
+          const textStr = frameData.toString("utf8");
+          if (textStr.includes("Path:turn.end")) {
+            return finish(audioChunks.length ? Buffer.concat(audioChunks).toString("base64") : null);
+          }
+        } else if (opcode === 0x08) {
+          return finish(audioChunks.length ? Buffer.concat(audioChunks).toString("base64") : null);
+        }
+      }
+    });
+
+    socket.on("error", () => finish(null));
+    socket.on("close", () => {
+      finish(audioChunks.length ? Buffer.concat(audioChunks).toString("base64") : null);
+    });
+  });
+}
+
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json");
 
@@ -74,15 +262,19 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: `GitHub Push Failed: ${errText}` });
       }
 
+      const confirmReply = `Done. The update to ${cleanPath} is now live on GitHub and deploying to dynast.co.in.`;
+      const audioBase64 = await synthesizeConversationalMaleVoice(confirmReply);
       return res.status(200).json({
-        reply: `Done. The update to ${cleanPath} is now live on GitHub and deploying to dynast.co.in.`
+        reply: confirmReply,
+        audioBase64,
+        mimeType: "audio/mpeg"
       });
     } catch (err) {
       return res.status(500).json({ error: "GitHub Update Error: " + err.message });
     }
   }
 
-  // 2. SMART CONDITIONAL CONTEXT LOADING FOR SUB-SECOND SPEED
+  // 2. SMART CONDITIONAL CONTEXT LOADING
   const lowerPrompt = String(prompt).toLowerCase();
   const needsDatabase = /(order|stock|inventory|database|table|supabase|sale|customer|log|revenue|analytics)/.test(lowerPrompt);
   const needsGoogleLive = /(news|today|latest|weather|price|market|bitcoin|gold|sensex|nifty|score|happening|world|current|search|google|trend|2026|who won)/.test(lowerPrompt);
@@ -211,7 +403,6 @@ VOCAL CONVERSATION RULES:
   }
   contents.push({ role: "user", parts: [{ text: String(prompt) }] });
 
-  // gemini-3.8-flash FIRST for guaranteed <0.9s response on your key
   const models = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"];
   let lastError = "";
 
@@ -257,12 +448,17 @@ VOCAL CONVERSATION RULES:
         if (updateMatch) {
           try {
             const parsed = JSON.parse(updateMatch[1].trim());
-            const cleanReply = allText
-              .replace(/<GITHUB_UPDATE>[\s\S]*?<\/GITHUB_UPDATE>/, "")
-              .replace(/,\s*Hanzalah([.!?])/gi, "$1")
-              .trim();
+            const cleanReply =
+              allText
+                .replace(/<GITHUB_UPDATE>[\s\S]*?<\/GITHUB_UPDATE>/, "")
+                .replace(/,\s*Hanzalah([.!?])/gi, "$1")
+                .trim() || `I've prepared the update for ${parsed.filePath}. Tap Deploy below to push it live.`;
+
+            const audioBase64 = await synthesizeConversationalMaleVoice(cleanReply);
             return res.status(200).json({
-              reply: cleanReply || `I've prepared the update for ${parsed.filePath}. Tap Deploy below to push it live.`,
+              reply: cleanReply,
+              audioBase64,
+              mimeType: "audio/mpeg",
               pendingAction: {
                 type: "github_update",
                 filePath: parsed.filePath,
@@ -274,10 +470,15 @@ VOCAL CONVERSATION RULES:
           } catch (e) {}
         }
 
-        allText = allText.replace(/,\s*Hanzalah([.!?])$/i, "$1").trim();
+        allText = allText.replace(/,\s*Hanzalah([.!?])$/i, "$1").trim() || "I'm right here and ready.";
+
+        // Synthesize the neural male voice in the exact same request so text & audio arrive together
+        const audioBase64 = await synthesizeConversationalMaleVoice(allText);
 
         return res.status(200).json({
-          reply: allText || "I'm right here and ready.",
+          reply: allText,
+          audioBase64,
+          mimeType: "audio/mpeg",
           modelUsed: model
         });
       }
@@ -289,4 +490,4 @@ VOCAL CONVERSATION RULES:
   }
 
   return res.status(500).json({ error: `Gemini API Error: ${lastError}` });
-          }
+}
