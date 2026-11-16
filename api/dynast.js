@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt = "", chatHistory = [], confirmAction = null } = req.body || {};
+  const { prompt = "", chatHistory = [], confirmAction = null, fastMode = true } = req.body || {};
 
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
   const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || "").trim();
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing GEMINI_API_KEY in Vercel Environment Variables." });
   }
 
-  async function fetchFast(url, options = {}, timeoutMs = 2000) {
+  async function fetchFast(url, options = {}, timeoutMs = 1800) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            message: commitMessage || `DYNAST AI update to ${cleanPath} (Approved by Hanzalah)`,
+            message: commitMessage || `DYNAST AI update to ${cleanPath}`,
             content: Buffer.from(newContent, "utf8").toString("base64"),
             sha: fileData.sha
           })
@@ -75,16 +75,17 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({
-        reply: `Confirmed, Hanzalah. I have pushed the update to ${cleanPath} on GitHub and Vercel is deploying it live.`
+        reply: `The update to ${cleanPath} has been pushed to GitHub. Vercel is now deploying the changes live to dynast.co.in.`
       });
     } catch (err) {
       return res.status(500).json({ error: "GitHub Update Error: " + err.message });
     }
   }
 
-  // 2. ONLY FETCH SUPABASE OR GITHUB CODE WHEN THE COMMAND ACTUALLY NEEDS IT
+  // 2. SMART ROUTING: ONLY FETCH EXTERNAL CONTEXT WHEN NEEDED FOR MAXIMUM SPEED
   const lowerPrompt = String(prompt).toLowerCase();
-  const needsDatabase = /(order|stock|inventory|database|table|supabase|sale|customer|log|status|check)/.test(lowerPrompt);
+  const needsDatabase = /(order|stock|inventory|database|table|supabase|sale|customer|log|revenue|analytics)/.test(lowerPrompt);
+  const needsGoogleLive = /(news|today|latest|weather|price|market|bitcoin|gold|sensex|nifty|score|happening|world|current|search|google|trend|2026|who won|what is happening)/.test(lowerPrompt);
 
   let targetFile = null;
   if (lowerPrompt.includes("bespoke-admin") || lowerPrompt.includes("bespoke admin")) {
@@ -95,7 +96,7 @@ export default async function handler(req, res) {
     targetFile = "bespoke.html";
   } else if (lowerPrompt.includes("card")) {
     targetFile = "card.html";
-  } else if (/(index|website|main site|homepage|update|edit|change|code)/.test(lowerPrompt)) {
+  } else if (/(index\.html|website code|main site|homepage|update.*site|edit.*site|change.*site)/.test(lowerPrompt)) {
     targetFile = "index.html";
   }
 
@@ -106,7 +107,7 @@ export default async function handler(req, res) {
       const schemaRes = await fetchFast(
         `${SUPABASE_URL}/rest/v1/`,
         { headers: { apikey: SUPABASE_KEY } },
-        1800
+        1500
       );
       if (schemaRes.ok) {
         const schema = await schemaRes.json();
@@ -121,7 +122,7 @@ export default async function handler(req, res) {
               const r = await fetchFast(
                 `${SUPABASE_URL}/rest/v1/${t}?select=*&limit=10`,
                 { headers: { apikey: SUPABASE_KEY } },
-                1500
+                1200
               );
               if (r.ok) snapshot[t] = await r.json();
             } catch (e) {}
@@ -139,83 +140,137 @@ export default async function handler(req, res) {
         const r = await fetchFast(
           `https://api.github.com/repos/${GITHUB_REPO}/contents/${file}`,
           { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3.raw" } },
-          2000
+          1800
         );
         if (r.ok) return await r.text();
       }
-      const raw = await fetchFast(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${file}`, {}, 2000);
+      const raw = await fetchFast(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${file}`, {}, 1800);
       if (raw.ok) return await raw.text();
     } catch (e) {}
     return null;
   }
 
-  const [dbData, fileCode] = await Promise.all([
+  // Live Google Data Feed (fetches real-time Google News/Search headlines in <900ms)
+  async function getLiveGoogleFeed(queryText) {
+    try {
+      const cleaned = queryText.replace(/[^a-zA-Z0-9 ]/g, " ").trim() || "India luxury business technology";
+      const rssUrl = needsGoogleLive
+        ? `https://news.google.com/rss/search?q=${encodeURIComponent(cleaned)}&hl=en-IN&gl=IN&ceid=IN:en`
+        : `https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en`;
+      const res = await fetchFast(rssUrl, {}, 1200);
+      if (!res.ok) return null;
+      const xml = await res.text();
+      const items = [...xml.matchAll(/<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?<\/item>/g)]
+        .slice(0, 6)
+        .map((m) => `${m[1].replace(/<!\[CDATA\[|\]\]>/g, "")} (${m[2]})`);
+      return items.length ? items.join(" | ") : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  const [dbData, fileCode, googleLiveFeed] = await Promise.all([
     getSupabaseData(),
-    getGithubFile(targetFile)
+    getGithubFile(targetFile),
+    needsGoogleLive ? getLiveGoogleFeed(prompt) : Promise.resolve(null)
   ]);
 
-  const systemPrompt = `You are DYNAST, the elite executive AI assistant for Hanzalah, Founder of the luxury watch brand DYNAST (dynast.co.in).
-You oversee:
+  const nowIST = new Date().toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "full",
+    timeStyle: "short"
+  });
+
+  const systemPrompt = `You are DYNAST, an ultra-intelligent, calm, and articulate executive AI assistant for the founder of the luxury horology brand DYNAST (dynast.co.in).
+Current Live Date & Time (IST): ${nowIST}.
+
+ECOSYSTEM ACCESS:
 - Main Storefront: dynast.co.in (index.html)
 - Bespoke 3D Studio: dynast.co.in/bespoke (bespoke.html)
 - Main Admin Panel: dynast.co.in/admin (admin.html)
 - Bespoke Admin Panel: dynast.co.in/bespoke-admin (bespoke-admin.html)
 - Digital Concierge Card: dynast.co.in/card (card.html)
-${dbData ? `\nLIVE SUPABASE DATA:\n${JSON.stringify(dbData)}` : ""}
+${dbData ? `\nLIVE SUPABASE DATABASE:\n${JSON.stringify(dbData)}` : ""}
+${googleLiveFeed ? `\nLIVE GOOGLE REAL-TIME DATA & NEWS FEED:\n${googleLiveFeed}` : ""}
 ${fileCode ? `\nSOURCE CODE OF ${targetFile}:\n${fileCode.slice(0, 28000)}` : ""}
 
-RULES:
-- Address Hanzalah naturally and intelligently as his executive AI partner.
-- Keep spoken replies concise (2 to 3 sentences).
-- If Hanzalah asks to edit or update a website file, include the complete updated code at the end of your reply inside <GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"...","commitMessage":"...","newContent":"..."}</GITHUB_UPDATE>.`;
+STRICT CONVERSATIONAL RULES:
+1. NEVER repeat the founder's name ("Hanzalah") at the end of your sentences or in every response. Do NOT say ", Hanzalah" at the end of replies. Speak naturally like a real human executive in an ongoing conversation.
+2. Write for natural human speech: use smooth, conversational phrasing without markdown bullet symbols (* or #) so your voice sounds fluid when spoken aloud.
+3. Keep spoken answers crisp (1 to 3 sentences) unless asked for deep analysis.
+4. If asked to edit or update a website file, include the complete updated code at the very end of your reply wrapped in <GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"...","commitMessage":"...","newContent":"..."}</GITHUB_UPDATE>.`;
 
+  // Clean old chatHistory so the model doesn't mimic past ", Hanzalah." endings
   const contents = [];
   for (const h of chatHistory.slice(-8)) {
     if (h && h.text && !String(h.text).includes("Error") && !String(h.text).includes("timed out")) {
+      const cleanedHistoryText = String(h.text)
+        .replace(/,\s*Hanzalah([.!?])/gi, "$1")
+        .replace(/\bHanzalah,\s*/gi, "");
       contents.push({
         role: h.role === "Hanzalah" ? "user" : "model",
-        parts: [{ text: String(h.text) }]
+        parts: [{ text: cleanedHistoryText }]
       });
     }
   }
   contents.push({ role: "user", parts: [{ text: String(prompt) }] });
 
-  // Use the exact active models supported on your key
-  const models = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-pro-preview"];
+  // Prioritize gemini-3.5-flash-lite for ultra-fast latency, then gemini-3.8-flash
+  const models = fastMode
+    ? ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-pro-preview"]
+    : ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"];
+
   let lastError = "";
+
+  async function callModel(modelId, useGoogleSearchTool) {
+    const payload = {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: contents,
+      generationConfig: { temperature: 0.55 }
+    };
+
+    if (useGoogleSearchTool && !targetFile) {
+      payload.tools = [{ googleSearch: {} }];
+    }
+
+    return await fetchFast(
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": GEMINI_API_KEY
+        },
+        body: JSON.stringify(payload)
+      },
+      6500
+    );
+  }
 
   for (const model of models) {
     try {
-      const response = await fetchFast(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": GEMINI_API_KEY
-          },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: contents,
-            generationConfig: { temperature: 0.5 }
-          })
-        },
-        7500
-      );
+      // If user asks about live events/search, try native Google Search grounding first, then instant fallback
+      let response = await callModel(model, needsGoogleLive);
+      if (!response.ok && needsGoogleLive) {
+        response = await callModel(model, false);
+      }
 
       const data = await response.json();
       if (response.ok && data?.candidates?.[0]?.content?.parts) {
         const parts = data.candidates[0].content.parts;
         const textParts = parts.filter((p) => p.text && !p.thought).map((p) => p.text);
-        const allText = (textParts.length ? textParts : parts.map((p) => p.text || "")).join(" ").trim();
+        let allText = (textParts.length ? textParts : parts.map((p) => p.text || "")).join(" ").trim();
 
         const updateMatch = allText.match(/<GITHUB_UPDATE>([\s\S]*?)<\/GITHUB_UPDATE>/);
         if (updateMatch) {
           try {
             const parsed = JSON.parse(updateMatch[1].trim());
-            const cleanReply = allText.replace(/<GITHUB_UPDATE>[\s\S]*?<\/GITHUB_UPDATE>/, "").trim();
+            const cleanReply = allText
+              .replace(/<GITHUB_UPDATE>[\s\S]*?<\/GITHUB_UPDATE>/, "")
+              .replace(/,\s*Hanzalah([.!?])/gi, "$1")
+              .trim();
             return res.status(200).json({
-              reply: cleanReply || `Hanzalah, I have prepared the update for ${parsed.filePath}. Tap Confirm below to push it live.`,
+              reply: cleanReply || `I have staged the update for ${parsed.filePath}. Tap Confirm below to push it live.`,
               pendingAction: {
                 type: "github_update",
                 filePath: parsed.filePath,
@@ -227,7 +282,13 @@ RULES:
           } catch (e) {}
         }
 
-        return res.status(200).json({ reply: allText || "Systems online, Hanzalah." });
+        // Remove any trailing ", Hanzalah." if the model ever slips
+        allText = allText.replace(/,\s*Hanzalah([.!?])$/i, "$1").trim();
+
+        return res.status(200).json({
+          reply: allText || "All systems are online and ready.",
+          modelUsed: model
+        });
       }
 
       lastError = data?.error?.message || JSON.stringify(data);
@@ -237,4 +298,4 @@ RULES:
   }
 
   return res.status(500).json({ error: `Gemini API Error: ${lastError}` });
-}
+      }
