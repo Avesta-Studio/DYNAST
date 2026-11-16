@@ -37,10 +37,10 @@
     }
 
     .glass-panel {
-      background: rgba(12, 12, 16, 0.76);
+      background: rgba(12, 12, 16, 0.82);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(245, 158, 11, 0.22);
     }
 
     @keyframes floatSlow {
@@ -101,19 +101,42 @@
 
         <div class="flex items-center gap-1.5">
           <button
-            onclick="toggleMute()"
-            id="muteBtn"
+            onclick="toggleDrawer('voiceDrawer')"
             class="glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300 hover:border-amber-400/50 transition"
           >
-            GAIN: 2.5X
+            VOICE PACK
           </button>
           <button
-            onclick="toggleHub()"
+            onclick="toggleDrawer('hubPanel')"
             class="glass-pill px-2.5 py-1.5 rounded-full text-[10px] font-mono-tech text-neutral-300 hover:border-white/30 transition"
           >
             HUB
           </button>
         </div>
+      </div>
+
+      <!-- Gemini Male Voice Pack & Engine Selector Drawer -->
+      <div id="voiceDrawer" class="hidden w-full glass-panel rounded-2xl p-3.5 mt-2.5 shadow-2xl">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-mono-tech uppercase tracking-widest text-amber-300">Gemini Male Voice Pack</span>
+          <button onclick="toggleMute()" id="muteBtn" class="text-[10px] font-mono-tech text-emerald-400">SPEAKER: ON</button>
+        </div>
+
+        <!-- 4 Gemini Vocal Tuning Presets -->
+        <div class="grid grid-cols-4 gap-1.5 mb-2.5">
+          <button onclick="applyGeminiPreset('Orion', 0.88, 1.02)" id="preset-Orion" class="py-1.5 rounded-xl text-[11px] font-medium border border-amber-400/60 bg-amber-500/20 text-amber-200">Orion</button>
+          <button onclick="applyGeminiPreset('Puck', 0.96, 1.04)" id="preset-Puck" class="py-1.5 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Puck</button>
+          <button onclick="applyGeminiPreset('Charon', 0.82, 0.98)" id="preset-Charon" class="py-1.5 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Charon</button>
+          <button onclick="applyGeminiPreset('Fenrir', 0.92, 1.06)" id="preset-Fenrir" class="py-1.5 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Fenrir</button>
+        </div>
+
+        <!-- Direct System Voice Engine Picker -->
+        <label class="block text-[10px] font-mono-tech text-neutral-400 mb-1">Installed Google Voice Engine:</label>
+        <select
+          id="voiceEngineSelect"
+          onchange="selectSpecificEngine(this.value)"
+          class="w-full bg-black/80 border border-white/15 rounded-xl px-3 py-2 text-xs text-amber-100 outline-none"
+        ></select>
       </div>
 
       <!-- Collapsible Ecosystem Hub Drawer -->
@@ -132,7 +155,7 @@
         <canvas id="orbCanvas" width="320" height="320" class="w-[260px] h-[260px] sm:w-[290px] sm:h-[290px]"></canvas>
         <div class="absolute pointer-events-none flex flex-col items-center justify-center">
           <span id="orbCenterLabel" class="text-[10px] font-mono-tech tracking-[0.28em] text-amber-200/80 uppercase">Tap to Speak</span>
-          <span id="latencyLabel" class="text-[9px] font-mono-tech text-neutral-400 mt-1 opacity-75">GEMINI LIVE VOICE</span>
+          <span id="latencyLabel" class="text-[9px] font-mono-tech text-neutral-400 mt-1 opacity-75">ORION MALE VOICE</span>
         </div>
       </div>
 
@@ -219,54 +242,125 @@
     let continuousLiveMode = false;
     let currentState = "ONLINE"; // ONLINE | LISTENING | THINKING | SPEAKING
 
-    // Web Audio API Pre-Amp & Real-Time Frequency Analyser
-    let audioCtx = null;
-    let analyser = null;
-    let gainNode = null;
-    let compressorNode = null;
-    let freqData = null;
-    let currentAudioSource = null;
+    // Saved Voice Pack Settings (Defaults to Gemini Orion Deep Male Tuning)
+    let currentPresetName = localStorage.getItem("DYNAST_PRESET_NAME") || "Orion";
+    let voicePitch = parseFloat(localStorage.getItem("DYNAST_VOICE_PITCH") || "0.88");
+    let voiceRate = parseFloat(localStorage.getItem("DYNAST_VOICE_RATE") || "1.02");
+    let savedVoiceURI = localStorage.getItem("DYNAST_ENGINE_URI") || "";
+    let selectedVoiceObj = null;
 
-    // Concurrency & Animation Locks
     let activeFetchController = null;
     let activeRecognition = null;
     let textAnimInterval = null;
+    let speechPulseEnergy = 0;
 
-    chatHistory = chatHistory.map((item) => ({
-      role: item.role,
-      text: String(item.text || "").replace(/,\s*Hanzalah([.!?])/gi, "$1")
-    }));
+    // Clean any old ", Hanzalah" or "can't hear" artifacts from saved memory
+    chatHistory = chatHistory
+      .filter((item) => !String(item.text || "").toLowerCase().includes("audio channel"))
+      .map((item) => ({
+        role: item.role,
+        text: String(item.text || "").replace(/,\s*Hanzalah([.!?])/gi, "$1")
+      }));
     saveHistory();
 
-    // Initialize Web Audio Graph with 2.5x Loudspeaker Gain + Studio Vocal Compressor
-    function initAudioEngine() {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!audioCtx && AudioCtx) {
-        audioCtx = new AudioCtx();
+    // Discover & rank best English Male voices on Android / Desktop
+    function populateVoiceEngines() {
+      if (!("speechSynthesis" in window)) return;
+      const allVoices = window.speechSynthesis.getVoices();
+      if (!allVoices.length) return;
 
-        compressorNode = audioCtx.createDynamicsCompressor();
-        compressorNode.threshold.setValueAtTime(-20, audioCtx.currentTime);
-        compressorNode.knee.setValueAtTime(18, audioCtx.currentTime);
-        compressorNode.ratio.setValueAtTime(4, audioCtx.currentTime);
-        compressorNode.attack.setValueAtTime(0.003, audioCtx.currentTime);
-        compressorNode.release.setValueAtTime(0.15, audioCtx.currentTime);
+      // Match both hyphen (en-US) and Android underscore (en_US) formats
+      const enVoices = allVoices.filter((v) => /^en[-_]/i.test(v.lang || "") || (v.lang || "").toLowerCase().startsWith("en"));
+      const list = enVoices.length ? enVoices : allVoices;
 
-        gainNode = audioCtx.createGain();
-        gainNode.gain.setValueAtTime(2.5, audioCtx.currentTime); // 2.5x Volume Boost
+      const isFemale = (v) => {
+        const id = (v.name + " " + v.voiceURI).toLowerCase();
+        return /(female|sfg|iob|tpc|tpf|samantha|victoria|karen|moira|tessa|veena|zira|hazel|aria|jenny)/.test(id);
+      };
 
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 128;
-        analyser.smoothingTimeConstant = 0.8;
-        freqData = new Uint8Array(analyser.frequencyBinCount);
+      // Rank Google UK / US Male & Natural engines highest
+      list.sort((a, b) => {
+        const score = (v) => {
+          const id = (v.name + " " + v.voiceURI + " " + v.lang).toLowerCase();
+          let s = 0;
+          if (!isFemale(v)) s += 40;
+          if (/(male|iom|tpd|rjs|end|guy|daniel|david|brian|andrew|arthur)/.test(id)) s += 50;
+          if (id.includes("en_gb") || id.includes("en-gb") || id.includes("united kingdom") || id.includes("uk")) s += 30;
+          if (id.includes("en_us") || id.includes("en-us") || id.includes("united states") || id.includes("us")) s += 25;
+          if (id.includes("google") || id.includes("natural") || id.includes("network")) s += 15;
+          return s;
+        };
+        return score(b) - score(a);
+      });
 
-        compressorNode.connect(gainNode);
-        gainNode.connect(analyser);
-        analyser.connect(audioCtx.destination);
+      const select = document.getElementById("voiceEngineSelect");
+      if (select) {
+        select.innerHTML = "";
+        list.forEach((v) => {
+          const opt = document.createElement("option");
+          opt.value = v.voiceURI;
+          opt.textContent = `${v.name} (${v.lang})`;
+          select.appendChild(opt);
+        });
       }
 
-      if (audioCtx && audioCtx.state === "suspended") {
-        audioCtx.resume();
+      if (savedVoiceURI) {
+        selectedVoiceObj = list.find((v) => v.voiceURI === savedVoiceURI) || list[0];
+      } else {
+        selectedVoiceObj = list[0];
       }
+
+      if (select && selectedVoiceObj) {
+        select.value = selectedVoiceObj.voiceURI;
+      }
+
+      highlightPresetButton(currentPresetName);
+    }
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = populateVoiceEngines;
+      populateVoiceEngines();
+    }
+
+    function highlightPresetButton(name) {
+      ["Orion", "Puck", "Charon", "Fenrir"].forEach((p) => {
+        const btn = document.getElementById("preset-" + p);
+        if (!btn) return;
+        if (p === name) {
+          btn.className = "py-1.5 rounded-xl text-[11px] font-medium border border-amber-400/60 bg-amber-500/20 text-amber-200";
+        } else {
+          btn.className = "py-1.5 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400";
+        }
+      });
+      document.getElementById("latencyLabel").textContent = `${name.toUpperCase()} MALE VOICE`;
+    }
+
+    function applyGeminiPreset(name, pitch, rate) {
+      currentPresetName = name;
+      voicePitch = pitch;
+      voiceRate = rate;
+      localStorage.setItem("DYNAST_PRESET_NAME", name);
+      localStorage.setItem("DYNAST_VOICE_PITCH", String(pitch));
+      localStorage.setItem("DYNAST_VOICE_RATE", String(rate));
+      highlightPresetButton(name);
+      document.getElementById("voiceDrawer").classList.add("hidden");
+      speakNow(`Voice pack locked to ${name}. Ready when you are.`);
+    }
+
+    function selectSpecificEngine(uri) {
+      savedVoiceURI = uri;
+      localStorage.setItem("DYNAST_ENGINE_URI", uri);
+      const voices = window.speechSynthesis.getVoices();
+      selectedVoiceObj = voices.find((v) => v.voiceURI === uri) || selectedVoiceObj;
+      speakNow("Voice engine updated and locked.");
+    }
+
+    function toggleDrawer(id) {
+      const other = id === "voiceDrawer" ? "hubPanel" : "voiceDrawer";
+      document.getElementById(other).classList.add("hidden");
+      const target = document.getElementById(id);
+      target.classList.toggle("hidden");
+      if (id === "voiceDrawer") populateVoiceEngines();
     }
 
     function unlockDynast() {
@@ -275,18 +369,16 @@
         document.getElementById("pinError").classList.remove("hidden");
         return;
       }
-      initAudioEngine();
+      populateVoiceEngines();
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
       startOrbAnimation();
-    }
 
-    function toggleHub() {
-      document.getElementById("hubPanel").classList.toggle("hidden");
+      // Unlock Android Chrome SpeechSynthesis immediately on button tap gesture
+      speakNow("I'm online and ready.");
     }
 
     function toggleContinuousLive() {
-      initAudioEngine();
       continuousLiveMode = !continuousLiveMode;
       const btn = document.getElementById("liveModeBtn");
       if (continuousLiveMode) {
@@ -304,10 +396,10 @@
       isMuted = !isMuted;
       stopSpeaking();
       const btn = document.getElementById("muteBtn");
-      btn.textContent = isMuted ? "MUTED" : "GAIN: 2.5X";
+      btn.textContent = isMuted ? "SPEAKER: MUTED" : "SPEAKER: ON";
       btn.className = isMuted
-        ? "glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-rose-400"
-        : "glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300";
+        ? "text-[10px] font-mono-tech text-rose-400"
+        : "text-[10px] font-mono-tech text-emerald-400";
     }
 
     function stopListening() {
@@ -319,17 +411,14 @@
     }
 
     function stopSpeaking() {
-      if (currentAudioSource) {
-        try { currentAudioSource.stop(); } catch (e) {}
-        currentAudioSource = null;
-      }
+      speechPulseEnergy = 0;
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
     }
 
     function saveHistory() {
-      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-10)));
+      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-8)));
     }
 
     function clearHistory() {
@@ -338,7 +427,9 @@
       localStorage.removeItem("DYNAST_CHAT_MEMORY");
       document.getElementById("confirmBox").classList.add("hidden");
       document.getElementById("hubPanel").classList.add("hidden");
-      animateReplyText("Memory cleared. What would you like to focus on next?");
+      const msg = "Memory cleared. What would you like to focus on next?";
+      animateReplyText(msg);
+      speakNow(msg);
     }
 
     function setVisualStatus(state, latencyMs = null) {
@@ -349,7 +440,7 @@
       const latencyLabel = document.getElementById("latencyLabel");
 
       if (latencyMs) {
-        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • LIVE VOICE`;
+        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • ${currentPresetName.toUpperCase()}`;
       }
 
       if (state === "LISTENING") {
@@ -357,9 +448,9 @@
         statusDot.className = "w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_12px_#38bdf8] animate-ping";
         centerLabel.textContent = "Listening...";
       } else if (state === "THINKING") {
-        statusText.textContent = "SYNTHESIZING";
+        statusText.textContent = "THINKING";
         statusDot.className = "w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_12px_#c084fc] animate-pulse";
-        centerLabel.textContent = "Synthesizing...";
+        centerLabel.textContent = "Thinking...";
       } else if (state === "SPEAKING") {
         statusText.textContent = "SPEAKING LIVE";
         statusDot.className = "w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_12px_#fbbf24] animate-pulse";
@@ -388,49 +479,71 @@
         }
         el.textContent += (i === 0 ? "" : " ") + words[i];
         i++;
-      }, 42);
+      }, 25);
     }
 
-    // Play the Pre-Synthesized Neural Male Audio & Reveal Text at the Exact Same Millisecond
-    async function playSynchronizedResponse(replyText, audioBase64, elapsedMs) {
+    // GUARANTEED ZERO-DELAY, FULL-VOLUME SPEECH ENGINE
+    function speakNow(rawText, elapsedMs = null) {
+      if (isMuted || !("speechSynthesis" in window)) {
+        setVisualStatus("ONLINE", elapsedMs);
+        return;
+      }
+
       stopListening();
-      stopSpeaking();
-      initAudioEngine();
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
 
-      if (!isMuted && audioBase64 && audioCtx) {
-        try {
-          const binaryString = atob(audioBase64);
-          const len = binaryString.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
+      const cleanSpeech = String(rawText || "")
+        .replace(/[*#_`~>]/g, "")
+        .replace(/\bDYNAST\b/gi, "Dynast")
+        .replace(/https?:\/\/\S+/g, "")
+        .trim();
 
-          const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
-          const source = audioCtx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(compressorNode);
-          currentAudioSource = source;
+      if (!cleanSpeech) {
+        setVisualStatus("ONLINE", elapsedMs);
+        return;
+      }
 
-          source.onended = () => {
-            currentAudioSource = null;
+      if (!selectedVoiceObj) populateVoiceEngines();
+
+      const sentences = cleanSpeech.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanSpeech];
+      setVisualStatus("SPEAKING", elapsedMs);
+      speechPulseEnergy = 0.65;
+
+      sentences.forEach((sentence, idx) => {
+        const utter = new SpeechSynthesisUtterance(sentence.trim());
+        if (selectedVoiceObj) {
+          utter.voice = selectedVoiceObj;
+        }
+        utter.volume = 1.0; // 100% Maximum Loudspeaker Volume
+        utter.pitch = voicePitch;
+        utter.rate = voiceRate;
+
+        utter.onstart = () => {
+          currentState = "SPEAKING";
+          speechPulseEnergy = 0.7;
+        };
+
+        utter.onboundary = () => {
+          speechPulseEnergy = 0.55 + Math.random() * 0.45;
+        };
+
+        if (idx === sentences.length - 1) {
+          utter.onend = () => {
+            speechPulseEnergy = 0;
             setVisualStatus("ONLINE");
             if (continuousLiveMode) {
               setTimeout(() => startListening(), 280);
             }
           };
+          utter.onerror = () => {
+            speechPulseEnergy = 0;
+            setVisualStatus("ONLINE");
+          };
+        }
 
-          // Start audio and text reveal on the exact same frame
-          setVisualStatus("SPEAKING", elapsedMs);
-          animateReplyText(replyText);
-          source.start(0);
-          return;
-        } catch (e) {}
-      }
-
-      // If muted, just reveal the text
-      setVisualStatus("ONLINE", elapsedMs);
-      animateReplyText(replyText);
+        window.speechSynthesis.speak(utter);
+      });
     }
 
     async function executeConfirmedAction() {
@@ -457,7 +570,8 @@
 
         chatHistory.push({ role: "DYNAST", text: data.reply });
         saveHistory();
-        await playSynchronizedResponse(data.reply, data.audioBase64, elapsed);
+        animateReplyText(data.reply);
+        speakNow(data.reply, elapsed);
       } catch (err) {
         setVisualStatus("ONLINE");
         animateReplyText("Network Error: " + err.message);
@@ -467,8 +581,9 @@
     function cancelStagedAction() {
       stagedAction = null;
       document.getElementById("confirmBox").classList.add("hidden");
-      animateReplyText("Update cancelled.");
-      setVisualStatus("ONLINE");
+      const msg = "Update cancelled.";
+      animateReplyText(msg);
+      speakNow(msg);
     }
 
     async function sendCommand(commandText) {
@@ -480,7 +595,6 @@
       }
       stopListening();
       stopSpeaking();
-      initAudioEngine();
 
       const lower = commandText.trim().toLowerCase();
       if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "deploy" || lower === "yes")) {
@@ -529,7 +643,8 @@
         chatHistory.push({ role: "DYNAST", text: data.reply });
         saveHistory();
 
-        await playSynchronizedResponse(data.reply, data.audioBase64, elapsed);
+        animateReplyText(data.reply);
+        speakNow(data.reply, elapsed);
       } catch (err) {
         if (err.name === "AbortError") return;
         setVisualStatus("ONLINE");
@@ -546,7 +661,6 @@
     }
 
     function handleOrbTap() {
-      initAudioEngine();
       if (currentState === "SPEAKING") {
         stopSpeaking();
         setVisualStatus("ONLINE");
@@ -588,7 +702,7 @@
       recognition.start();
     }
 
-    // 60FPS FLUID PLASMA ORB DRIVEN BY LIVE WEB AUDIO FREQUENCIES
+    // 60FPS FLUID PLASMA ORB RENDERER
     function startOrbAnimation() {
       const canvas = document.getElementById("orbCanvas");
       const ctx = canvas.getContext("2d");
@@ -600,11 +714,10 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         let audioEnergy = 0;
-        if (analyser && currentState === "SPEAKING") {
-          analyser.getByteFrequencyData(freqData);
-          let sum = 0;
-          for (let i = 0; i < 32; i++) sum += freqData[i];
-          audioEnergy = sum / (32 * 255);
+        if (currentState === "SPEAKING") {
+          speechPulseEnergy *= 0.94;
+          const naturalWave = Math.abs(Math.sin(time * 7)) * 0.38 + Math.abs(Math.cos(time * 11)) * 0.25;
+          audioEnergy = Math.min(1.0, Math.max(0.28, speechPulseEnergy + naturalWave));
         } else if (currentState === "LISTENING") {
           audioEnergy = 0.22 + Math.sin(time * 6) * 0.12;
         } else if (currentState === "THINKING") {
