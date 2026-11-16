@@ -219,21 +219,43 @@
     let continuousLiveMode = false;
     let currentState = "ONLINE"; // ONLINE | LISTENING | THINKING | SPEAKING
 
-    // Concurrency & Animation Locks (Prevents overlapping replies or dual voices)
     let activeFetchController = null;
     let activeRecognition = null;
     let textAnimInterval = null;
     let lockedMaleVoice = null;
     let speechPulseEnergy = 0;
+    let mediaChannelCtx = null;
 
-    // Purge any old ", Hanzalah" habits from browser memory
+    // Clean any old ", Hanzalah" habits from saved browser history
     chatHistory = chatHistory.map((item) => ({
       role: item.role,
       text: String(item.text || "").replace(/,\s*Hanzalah([.!?])/gi, "$1")
     }));
     saveHistory();
 
-    // STRICTLY LOCK ONTO ONE GOOGLE MALE VOICE (Excludes all female voices permanently)
+    // Forces Android Chrome onto the loud Media Loudspeaker stream instead of the low-volume Call earpiece stream
+    function forceMediaLoudspeakerChannel() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!mediaChannelCtx && AudioCtx) {
+          mediaChannelCtx = new AudioCtx();
+        }
+        if (mediaChannelCtx && mediaChannelCtx.state === "suspended") {
+          mediaChannelCtx.resume();
+        }
+        if (mediaChannelCtx) {
+          const osc = mediaChannelCtx.createOscillator();
+          const gain = mediaChannelCtx.createGain();
+          gain.gain.value = 0.0001; // Imperceptible pulse that locks Android's media speaker gain
+          osc.connect(gain);
+          gain.connect(mediaChannelCtx.destination);
+          osc.start();
+          osc.stop(mediaChannelCtx.currentTime + 0.04);
+        }
+      } catch (e) {}
+    }
+
+    // Strictly locks onto the single deep Male voice and blocks all female voice IDs
     function resolveLockedMaleVoice() {
       if (!("speechSynthesis" in window)) return null;
       const voices = window.speechSynthesis.getVoices();
@@ -242,7 +264,6 @@
       const enVoices = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith("en"));
       if (!enVoices.length) return voices[0];
 
-      // Explicitly filter out known Android/iOS/Windows female voice IDs
       const isFemale = (v) => {
         const id = (v.name + " " + v.voiceURI).toLowerCase();
         return /(female|sfg|iob|tpc|tpf|samantha|victoria|karen|moira|tessa|veena|zira|hazel|susan|linda|aria|jenny|sonia|natasha)/.test(id);
@@ -255,7 +276,6 @@
 
       const candidates = enVoices.filter((v) => !isFemale(v));
 
-      // Rank the exact Google US/UK Male voice highest for consistent Gemini Live tone
       candidates.sort((a, b) => {
         const rank = (v) => {
           const id = (v.name + " " + v.voiceURI).toLowerCase();
@@ -287,6 +307,7 @@
         document.getElementById("pinError").classList.remove("hidden");
         return;
       }
+      forceMediaLoudspeakerChannel();
       resolveLockedMaleVoice();
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
@@ -298,6 +319,7 @@
     }
 
     function toggleContinuousLive() {
+      forceMediaLoudspeakerChannel();
       continuousLiveMode = !continuousLiveMode;
       const btn = document.getElementById("liveModeBtn");
       if (continuousLiveMode) {
@@ -323,6 +345,7 @@
 
     function stopListening() {
       if (activeRecognition) {
+        try { activeRecognition.stop(); } catch (e) {}
         try { activeRecognition.abort(); } catch (e) {}
         activeRecognition = null;
       }
@@ -378,7 +401,6 @@
       }
     }
 
-    // Collision-safe word-by-word subtitle reveal
     function animateReplyText(text) {
       if (textAnimInterval) {
         clearInterval(textAnimInterval);
@@ -396,19 +418,19 @@
         }
         el.textContent += (i === 0 ? "" : " ") + words[i];
         i++;
-      }, 24);
+      }, 22);
     }
 
-    // ZERO-DELAY, FULL-LOUDSPEAKER-VOLUME LOCKED MALE VOICE ENGINE
+    // Zero-delay, full-volume locked Male voice playback
     function speakMaleVoiceInstantly(rawText) {
       if (isMuted || !("speechSynthesis" in window)) {
         setVisualStatus("ONLINE");
         return;
       }
 
-      // Crucial: Ensure microphone session is 100% closed so Android does not duck speaker volume
       stopListening();
       stopSpeaking();
+      forceMediaLoudspeakerChannel();
 
       const cleanSpeech = String(rawText)
         .replace(/[*#_`~>]/g, "")
@@ -422,52 +444,47 @@
       }
 
       const voice = lockedMaleVoice || resolveLockedMaleVoice();
+      const sentences = cleanSpeech.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanSpeech];
+      setVisualStatus("SPEAKING");
 
-      // 80ms release after mic close restores 100% Android media loudspeaker gain
-      setTimeout(() => {
-        const sentences = cleanSpeech.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanSpeech];
-        setVisualStatus("SPEAKING");
+      sentences.forEach((sentence, idx) => {
+        const utter = new SpeechSynthesisUtterance(sentence.trim());
+        if (voice) {
+          utter.voice = voice;
+          utter.lang = voice.lang || "en-US";
+        } else {
+          utter.lang = "en-US";
+        }
 
-        sentences.forEach((sentence, idx) => {
-          const utter = new SpeechSynthesisUtterance(sentence.trim());
-          if (voice) {
-            utter.voice = voice;
-            utter.lang = voice.lang || "en-US";
-          } else {
-            utter.lang = "en-US";
-          }
+        utter.volume = 1.0;
+        utter.rate = 1.0;
+        utter.pitch = 0.96;
 
-          // Locked Maximum Hardware Gain + Natural Conversational Male Cadence
-          utter.volume = 1.0;
-          utter.rate = 1.0;
-          utter.pitch = 0.96;
+        utter.onstart = () => {
+          currentState = "SPEAKING";
+          speechPulseEnergy = 0.65;
+        };
 
-          utter.onstart = () => {
-            currentState = "SPEAKING";
-            speechPulseEnergy = 0.65;
+        utter.onboundary = () => {
+          speechPulseEnergy = 0.55 + Math.random() * 0.45;
+        };
+
+        if (idx === sentences.length - 1) {
+          utter.onend = () => {
+            speechPulseEnergy = 0;
+            setVisualStatus("ONLINE");
+            if (continuousLiveMode) {
+              setTimeout(() => startListening(), 280);
+            }
           };
-
-          utter.onboundary = () => {
-            speechPulseEnergy = 0.55 + Math.random() * 0.45;
+          utter.onerror = () => {
+            speechPulseEnergy = 0;
+            setVisualStatus("ONLINE");
           };
+        }
 
-          if (idx === sentences.length - 1) {
-            utter.onend = () => {
-              speechPulseEnergy = 0;
-              setVisualStatus("ONLINE");
-              if (continuousLiveMode) {
-                setTimeout(() => startListening(), 300);
-              }
-            };
-            utter.onerror = () => {
-              speechPulseEnergy = 0;
-              setVisualStatus("ONLINE");
-            };
-          }
-
-          window.speechSynthesis.speak(utter);
-        });
-      }, 80);
+        window.speechSynthesis.speak(utter);
+      });
     }
 
     async function executeConfirmedAction() {
@@ -511,13 +528,13 @@
     async function sendCommand(commandText) {
       if (!commandText.trim()) return;
 
-      // Cancel any previous in-flight request or speech so two responses NEVER collide
       if (activeFetchController) {
         try { activeFetchController.abort(); } catch (e) {}
         activeFetchController = null;
       }
       stopListening();
       stopSpeaking();
+      forceMediaLoudspeakerChannel();
 
       const lower = commandText.trim().toLowerCase();
       if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "deploy" || lower === "yes")) {
@@ -570,7 +587,7 @@
         animateReplyText(data.reply);
         speakMaleVoiceInstantly(data.reply);
       } catch (err) {
-        if (err.name === "AbortError") return; // Superseded by newer command
+        if (err.name === "AbortError") return;
         setVisualStatus("ONLINE");
         animateReplyText("Connection interrupted. Tap the orb to try again.");
       }
@@ -585,6 +602,7 @@
     }
 
     function handleOrbTap() {
+      forceMediaLoudspeakerChannel();
       if (currentState === "SPEAKING") {
         stopSpeaking();
         setVisualStatus("ONLINE");
@@ -626,7 +644,7 @@
       recognition.start();
     }
 
-    // 60FPS FUTURISTIC FLUID PLASMA & VOICE-CADENCE REACTIVE ORB RENDERER
+    // 60FPS FLUID PLASMA ORB RENDERER
     function startOrbAnimation() {
       const canvas = document.getElementById("orbCanvas");
       const ctx = canvas.getContext("2d");
@@ -650,13 +668,13 @@
           audioEnergy = 0.05 + Math.sin(time * 2) * 0.03;
         }
 
-        let primaryRGB = "245, 158, 11"; // Gold
+        let primaryRGB = "245, 158, 11";
         let accentRGB = "251, 191, 36";
         if (currentState === "LISTENING") {
-          primaryRGB = "56, 189, 248"; // Cyan
+          primaryRGB = "56, 189, 248";
           accentRGB = "125, 211, 252";
         } else if (currentState === "THINKING") {
-          primaryRGB = "168, 85, 247"; // Quantum Violet
+          primaryRGB = "168, 85, 247";
           accentRGB = "245, 158, 11";
         }
 
