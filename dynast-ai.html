@@ -105,7 +105,7 @@
             id="muteBtn"
             class="glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300 hover:border-amber-400/50 transition"
           >
-            VOL: MAX
+            GAIN: 2.5X
           </button>
           <button
             onclick="toggleHub()"
@@ -132,7 +132,7 @@
         <canvas id="orbCanvas" width="320" height="320" class="w-[260px] h-[260px] sm:w-[290px] sm:h-[290px]"></canvas>
         <div class="absolute pointer-events-none flex flex-col items-center justify-center">
           <span id="orbCenterLabel" class="text-[10px] font-mono-tech tracking-[0.28em] text-amber-200/80 uppercase">Tap to Speak</span>
-          <span id="latencyLabel" class="text-[9px] font-mono-tech text-neutral-400 mt-1 opacity-75">GEMINI MALE VOICE</span>
+          <span id="latencyLabel" class="text-[9px] font-mono-tech text-neutral-400 mt-1 opacity-75">GEMINI LIVE VOICE</span>
         </div>
       </div>
 
@@ -219,86 +219,54 @@
     let continuousLiveMode = false;
     let currentState = "ONLINE"; // ONLINE | LISTENING | THINKING | SPEAKING
 
+    // Web Audio API Pre-Amp & Real-Time Frequency Analyser
+    let audioCtx = null;
+    let analyser = null;
+    let gainNode = null;
+    let compressorNode = null;
+    let freqData = null;
+    let currentAudioSource = null;
+
+    // Concurrency & Animation Locks
     let activeFetchController = null;
     let activeRecognition = null;
     let textAnimInterval = null;
-    let lockedMaleVoice = null;
-    let speechPulseEnergy = 0;
-    let mediaChannelCtx = null;
 
-    // Clean any old ", Hanzalah" habits from saved browser history
     chatHistory = chatHistory.map((item) => ({
       role: item.role,
       text: String(item.text || "").replace(/,\s*Hanzalah([.!?])/gi, "$1")
     }));
     saveHistory();
 
-    // Forces Android Chrome onto the loud Media Loudspeaker stream instead of the low-volume Call earpiece stream
-    function forceMediaLoudspeakerChannel() {
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!mediaChannelCtx && AudioCtx) {
-          mediaChannelCtx = new AudioCtx();
-        }
-        if (mediaChannelCtx && mediaChannelCtx.state === "suspended") {
-          mediaChannelCtx.resume();
-        }
-        if (mediaChannelCtx) {
-          const osc = mediaChannelCtx.createOscillator();
-          const gain = mediaChannelCtx.createGain();
-          gain.gain.value = 0.0001; // Imperceptible pulse that locks Android's media speaker gain
-          osc.connect(gain);
-          gain.connect(mediaChannelCtx.destination);
-          osc.start();
-          osc.stop(mediaChannelCtx.currentTime + 0.04);
-        }
-      } catch (e) {}
-    }
+    // Initialize Web Audio Graph with 2.5x Loudspeaker Gain + Studio Vocal Compressor
+    function initAudioEngine() {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!audioCtx && AudioCtx) {
+        audioCtx = new AudioCtx();
 
-    // Strictly locks onto the single deep Male voice and blocks all female voice IDs
-    function resolveLockedMaleVoice() {
-      if (!("speechSynthesis" in window)) return null;
-      const voices = window.speechSynthesis.getVoices();
-      if (!voices || !voices.length) return null;
+        compressorNode = audioCtx.createDynamicsCompressor();
+        compressorNode.threshold.setValueAtTime(-20, audioCtx.currentTime);
+        compressorNode.knee.setValueAtTime(18, audioCtx.currentTime);
+        compressorNode.ratio.setValueAtTime(4, audioCtx.currentTime);
+        compressorNode.attack.setValueAtTime(0.003, audioCtx.currentTime);
+        compressorNode.release.setValueAtTime(0.15, audioCtx.currentTime);
 
-      const enVoices = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith("en"));
-      if (!enVoices.length) return voices[0];
+        gainNode = audioCtx.createGain();
+        gainNode.gain.setValueAtTime(2.5, audioCtx.currentTime); // 2.5x Volume Boost
 
-      const isFemale = (v) => {
-        const id = (v.name + " " + v.voiceURI).toLowerCase();
-        return /(female|sfg|iob|tpc|tpf|samantha|victoria|karen|moira|tessa|veena|zira|hazel|susan|linda|aria|jenny|sonia|natasha)/.test(id);
-      };
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.8;
+        freqData = new Uint8Array(analyser.frequencyBinCount);
 
-      const isKnownMale = (v) => {
-        const id = (v.name + " " + v.voiceURI).toLowerCase();
-        return /(male|iom|tpd|rjs|end|ene|guy|andrew|brian|christopher|eric|steffan|daniel|david|james|mark|george|rishi|oliver|aaron|arthur)/.test(id);
-      };
+        compressorNode.connect(gainNode);
+        gainNode.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      }
 
-      const candidates = enVoices.filter((v) => !isFemale(v));
-
-      candidates.sort((a, b) => {
-        const rank = (v) => {
-          const id = (v.name + " " + v.voiceURI).toLowerCase();
-          let s = 0;
-          if (isKnownMale(v)) s += 50;
-          if (id.includes("google")) s += 30;
-          if (id.includes("iom") || id.includes("tpd") || id.includes("guy") || id.includes("andrew")) s += 25;
-          if (v.lang === "en-US" || v.lang === "en-GB") s += 15;
-          if (id.includes("natural") || id.includes("network") || !v.localService) s += 10;
-          return s;
-        };
-        return rank(b) - rank(a);
-      });
-
-      lockedMaleVoice = candidates[0] || enVoices[0];
-      return lockedMaleVoice;
-    }
-
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        resolveLockedMaleVoice();
-      };
-      resolveLockedMaleVoice();
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
     }
 
     function unlockDynast() {
@@ -307,8 +275,7 @@
         document.getElementById("pinError").classList.remove("hidden");
         return;
       }
-      forceMediaLoudspeakerChannel();
-      resolveLockedMaleVoice();
+      initAudioEngine();
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
       startOrbAnimation();
@@ -319,7 +286,7 @@
     }
 
     function toggleContinuousLive() {
-      forceMediaLoudspeakerChannel();
+      initAudioEngine();
       continuousLiveMode = !continuousLiveMode;
       const btn = document.getElementById("liveModeBtn");
       if (continuousLiveMode) {
@@ -337,7 +304,7 @@
       isMuted = !isMuted;
       stopSpeaking();
       const btn = document.getElementById("muteBtn");
-      btn.textContent = isMuted ? "MUTED" : "VOL: MAX";
+      btn.textContent = isMuted ? "MUTED" : "GAIN: 2.5X";
       btn.className = isMuted
         ? "glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-rose-400"
         : "glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300";
@@ -352,7 +319,10 @@
     }
 
     function stopSpeaking() {
-      speechPulseEnergy = 0;
+      if (currentAudioSource) {
+        try { currentAudioSource.stop(); } catch (e) {}
+        currentAudioSource = null;
+      }
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
@@ -379,7 +349,7 @@
       const latencyLabel = document.getElementById("latencyLabel");
 
       if (latencyMs) {
-        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • GEMINI MALE`;
+        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • LIVE VOICE`;
       }
 
       if (state === "LISTENING") {
@@ -389,7 +359,7 @@
       } else if (state === "THINKING") {
         statusText.textContent = "SYNTHESIZING";
         statusDot.className = "w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_12px_#c084fc] animate-pulse";
-        centerLabel.textContent = "Thinking...";
+        centerLabel.textContent = "Synthesizing...";
       } else if (state === "SPEAKING") {
         statusText.textContent = "SPEAKING LIVE";
         statusDot.className = "w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_12px_#fbbf24] animate-pulse";
@@ -418,73 +388,49 @@
         }
         el.textContent += (i === 0 ? "" : " ") + words[i];
         i++;
-      }, 22);
+      }, 42);
     }
 
-    // Zero-delay, full-volume locked Male voice playback
-    function speakMaleVoiceInstantly(rawText) {
-      if (isMuted || !("speechSynthesis" in window)) {
-        setVisualStatus("ONLINE");
-        return;
-      }
-
+    // Play the Pre-Synthesized Neural Male Audio & Reveal Text at the Exact Same Millisecond
+    async function playSynchronizedResponse(replyText, audioBase64, elapsedMs) {
       stopListening();
       stopSpeaking();
-      forceMediaLoudspeakerChannel();
+      initAudioEngine();
 
-      const cleanSpeech = String(rawText)
-        .replace(/[*#_`~>]/g, "")
-        .replace(/\bDYNAST\b/gi, "Dynast")
-        .replace(/https?:\/\/\S+/g, "")
-        .trim();
+      if (!isMuted && audioBase64 && audioCtx) {
+        try {
+          const binaryString = atob(audioBase64);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
 
-      if (!cleanSpeech) {
-        setVisualStatus("ONLINE");
-        return;
-      }
+          const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+          const source = audioCtx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(compressorNode);
+          currentAudioSource = source;
 
-      const voice = lockedMaleVoice || resolveLockedMaleVoice();
-      const sentences = cleanSpeech.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanSpeech];
-      setVisualStatus("SPEAKING");
-
-      sentences.forEach((sentence, idx) => {
-        const utter = new SpeechSynthesisUtterance(sentence.trim());
-        if (voice) {
-          utter.voice = voice;
-          utter.lang = voice.lang || "en-US";
-        } else {
-          utter.lang = "en-US";
-        }
-
-        utter.volume = 1.0;
-        utter.rate = 1.0;
-        utter.pitch = 0.96;
-
-        utter.onstart = () => {
-          currentState = "SPEAKING";
-          speechPulseEnergy = 0.65;
-        };
-
-        utter.onboundary = () => {
-          speechPulseEnergy = 0.55 + Math.random() * 0.45;
-        };
-
-        if (idx === sentences.length - 1) {
-          utter.onend = () => {
-            speechPulseEnergy = 0;
+          source.onended = () => {
+            currentAudioSource = null;
             setVisualStatus("ONLINE");
             if (continuousLiveMode) {
               setTimeout(() => startListening(), 280);
             }
           };
-          utter.onerror = () => {
-            speechPulseEnergy = 0;
-            setVisualStatus("ONLINE");
-          };
-        }
 
-        window.speechSynthesis.speak(utter);
-      });
+          // Start audio and text reveal on the exact same frame
+          setVisualStatus("SPEAKING", elapsedMs);
+          animateReplyText(replyText);
+          source.start(0);
+          return;
+        } catch (e) {}
+      }
+
+      // If muted, just reveal the text
+      setVisualStatus("ONLINE", elapsedMs);
+      animateReplyText(replyText);
     }
 
     async function executeConfirmedAction() {
@@ -493,11 +439,13 @@
       document.getElementById("confirmBox").classList.add("hidden");
 
       try {
+        const startTime = performance.now();
         const res = await fetch("/api/dynast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ confirmAction: stagedAction })
         });
+        const elapsed = performance.now() - startTime;
         const data = await res.json();
         stagedAction = null;
 
@@ -509,8 +457,7 @@
 
         chatHistory.push({ role: "DYNAST", text: data.reply });
         saveHistory();
-        animateReplyText(data.reply);
-        speakMaleVoiceInstantly(data.reply);
+        await playSynchronizedResponse(data.reply, data.audioBase64, elapsed);
       } catch (err) {
         setVisualStatus("ONLINE");
         animateReplyText("Network Error: " + err.message);
@@ -520,9 +467,8 @@
     function cancelStagedAction() {
       stagedAction = null;
       document.getElementById("confirmBox").classList.add("hidden");
-      const msg = "Update cancelled.";
-      animateReplyText(msg);
-      speakMaleVoiceInstantly(msg);
+      animateReplyText("Update cancelled.");
+      setVisualStatus("ONLINE");
     }
 
     async function sendCommand(commandText) {
@@ -534,7 +480,7 @@
       }
       stopListening();
       stopSpeaking();
-      forceMediaLoudspeakerChannel();
+      initAudioEngine();
 
       const lower = commandText.trim().toLowerCase();
       if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "deploy" || lower === "yes")) {
@@ -583,9 +529,7 @@
         chatHistory.push({ role: "DYNAST", text: data.reply });
         saveHistory();
 
-        setVisualStatus("SPEAKING", elapsed);
-        animateReplyText(data.reply);
-        speakMaleVoiceInstantly(data.reply);
+        await playSynchronizedResponse(data.reply, data.audioBase64, elapsed);
       } catch (err) {
         if (err.name === "AbortError") return;
         setVisualStatus("ONLINE");
@@ -602,7 +546,7 @@
     }
 
     function handleOrbTap() {
-      forceMediaLoudspeakerChannel();
+      initAudioEngine();
       if (currentState === "SPEAKING") {
         stopSpeaking();
         setVisualStatus("ONLINE");
@@ -644,7 +588,7 @@
       recognition.start();
     }
 
-    // 60FPS FLUID PLASMA ORB RENDERER
+    // 60FPS FLUID PLASMA ORB DRIVEN BY LIVE WEB AUDIO FREQUENCIES
     function startOrbAnimation() {
       const canvas = document.getElementById("orbCanvas");
       const ctx = canvas.getContext("2d");
@@ -656,10 +600,11 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         let audioEnergy = 0;
-        if (currentState === "SPEAKING") {
-          speechPulseEnergy *= 0.92;
-          const naturalWave = Math.abs(Math.sin(time * 7)) * 0.38 + Math.abs(Math.cos(time * 11)) * 0.25;
-          audioEnergy = Math.min(1.0, Math.max(0.28, speechPulseEnergy + naturalWave));
+        if (analyser && currentState === "SPEAKING") {
+          analyser.getByteFrequencyData(freqData);
+          let sum = 0;
+          for (let i = 0; i < 32; i++) sum += freqData[i];
+          audioEnergy = sum / (32 * 255);
         } else if (currentState === "LISTENING") {
           audioEnergy = 0.22 + Math.sin(time * 6) * 0.12;
         } else if (currentState === "THINKING") {
