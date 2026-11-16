@@ -5,14 +5,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const {
-    prompt = "",
-    chatHistory = [],
-    confirmAction = null,
-    ttsOnly = false,
-    ttsText = "",
-    voiceName = "Puck"
-  } = req.body || {};
+  const { prompt = "", chatHistory = [], confirmAction = null } = req.body || {};
 
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
   const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || "").trim();
@@ -28,7 +21,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing GEMINI_API_KEY in Vercel Environment Variables." });
   }
 
-  async function fetchFast(url, options = {}, timeoutMs = 2000) {
+  async function fetchFast(url, options = {}, timeoutMs = 1800) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -41,94 +34,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // 1. NATIVE GEMINI LIVE VOICE SYNTHESIS ENDPOINT (Puck, Aoede, Charon, Kore, Fenrir)
-  if (ttsOnly && ttsText) {
-    const cleanSpeech = String(ttsText)
-      .replace(/[*#_`~>]/g, "")
-      .replace(/https?:\/\/\S+/g, "")
-      .trim()
-      .slice(0, 600);
-
-    // Attempt 1: Native Gemini Live Prebuilt Voice Audio Modality
-    const ttsModels = [
-      "gemini-2.5-flash-preview-tts",
-      "gemini-3.8-flash",
-      "gemini-3.5-flash-lite"
-    ];
-
-    for (const modelId of ttsModels) {
-      try {
-        const ttsRes = await fetchFast(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": GEMINI_API_KEY
-            },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: cleanSpeech }] }],
-              generationConfig: {
-                responseModalities: ["AUDIO"],
-                speechConfig: {
-                  voiceConfig: {
-                    prebuiltVoiceConfig: {
-                      voiceName: voiceName || "Puck"
-                    }
-                  }
-                }
-              }
-            })
-          },
-          4200
-        );
-
-        if (ttsRes.ok) {
-          const ttsData = await ttsRes.json();
-          const audioPart = ttsData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-          if (audioPart) {
-            return res.status(200).json({
-              audioBase64: audioPart.inlineData.data,
-              mimeType: audioPart.inlineData.mimeType || "audio/L16;rate=24000",
-              source: "gemini-native-voice"
-            });
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Attempt 2: High-Definition Google Cloud Neural Stream Fallback (Zero-Failure Guarantee)
-    try {
-      const sentences = (cleanSpeech.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanSpeech]).slice(0, 3);
-      const buffers = [];
-      for (const s of sentences) {
-        const chunk = s.trim().slice(0, 190);
-        if (!chunk) continue;
-        const gUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(chunk)}`;
-        const gRes = await fetchFast(
-          gUrl,
-          { headers: { "User-Agent": "Mozilla/5.0" } },
-          2500
-        );
-        if (gRes.ok) {
-          const arrBuf = await gRes.arrayBuffer();
-          buffers.push(Buffer.from(arrBuf));
-        }
-      }
-      if (buffers.length > 0) {
-        const combined = Buffer.concat(buffers);
-        return res.status(200).json({
-          audioBase64: combined.toString("base64"),
-          mimeType: "audio/mpeg",
-          source: "google-cloud-stream"
-        });
-      }
-    } catch (e) {}
-
-    return res.status(200).json({ audioBase64: null });
-  }
-
-  // 2. EXECUTE CONFIRMED GITHUB UPDATE
+  // 1. EXECUTE CONFIRMED GITHUB UPDATE
   if (confirmAction && confirmAction.type === "github_update") {
     try {
       if (!GITHUB_TOKEN) {
@@ -176,7 +82,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // 3. SMART CONDITIONAL CONTEXT LOADING FOR SUB-SECOND SPEED
+  // 2. SMART CONDITIONAL CONTEXT LOADING FOR SUB-SECOND SPEED
   const lowerPrompt = String(prompt).toLowerCase();
   const needsDatabase = /(order|stock|inventory|database|table|supabase|sale|customer|log|revenue|analytics)/.test(lowerPrompt);
   const needsGoogleLive = /(news|today|latest|weather|price|market|bitcoin|gold|sensex|nifty|score|happening|world|current|search|google|trend|2026|who won)/.test(lowerPrompt);
@@ -272,7 +178,7 @@ export default async function handler(req, res) {
     timeStyle: "short"
   });
 
-  const systemPrompt = `You are DYNAST, an ultra-intelligent, warm, and natural voice AI partner for the founder of the luxury horology brand DYNAST (dynast.co.in).
+  const systemPrompt = `You are DYNAST, an ultra-intelligent, warm, and natural voice AI partner for Hanzalah, Founder of the luxury horology brand DYNAST (dynast.co.in).
 Current Live Date & Time (IST): ${nowIST}.
 
 ECOSYSTEM ACCESS:
@@ -286,9 +192,9 @@ ${googleLiveFeed ? `\nLIVE GOOGLE REAL-TIME DATA:\n${googleLiveFeed}` : ""}
 ${fileCode ? `\nSOURCE CODE OF ${targetFile}:\n${fileCode.slice(0, 28000)}` : ""}
 
 VOCAL CONVERSATION RULES:
-1. Speak exactly like a natural, articulate human in real-time voice chat. Use smooth, natural rhythm and contractions ("I'm", "we've", "it's").
-2. NEVER repeat the founder's name ("Hanzalah") at the end of sentences or in every reply.
-3. Keep spoken answers concise and punchy (1 to 3 sentences) unless asked for deep detail, with zero markdown symbols (* or #).
+1. Speak like a natural, articulate human in real-time voice chat using smooth rhythm and contractions ("I'm", "we've", "it's").
+2. Do NOT repeat the founder's name ("Hanzalah") at the end of sentences or in normal replies—only say his name if he explicitly asks who he is.
+3. Keep spoken answers concise and punchy (1 to 2 sentences) unless asked for deep detail, with zero markdown symbols (* or #).
 4. If asked to edit or update a website file, include the complete updated code at the very end wrapped in <GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"...","commitMessage":"...","newContent":"..."}</GITHUB_UPDATE>.`;
 
   const contents = [];
@@ -305,14 +211,15 @@ VOCAL CONVERSATION RULES:
   }
   contents.push({ role: "user", parts: [{ text: String(prompt) }] });
 
-  const models = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-pro-preview"];
+  // gemini-3.8-flash FIRST for guaranteed <0.9s response on your key
+  const models = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"];
   let lastError = "";
 
   async function callModel(modelId, useGoogleSearchTool) {
     const payload = {
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: contents,
-      generationConfig: { temperature: 0.6 }
+      generationConfig: { temperature: 0.55 }
     };
 
     if (useGoogleSearchTool && !targetFile) {
@@ -329,7 +236,7 @@ VOCAL CONVERSATION RULES:
         },
         body: JSON.stringify(payload)
       },
-      6000
+      4500
     );
   }
 
@@ -355,7 +262,7 @@ VOCAL CONVERSATION RULES:
               .replace(/,\s*Hanzalah([.!?])/gi, "$1")
               .trim();
             return res.status(200).json({
-              reply: cleanReply || `I've prepared the update for ${parsed.filePath}. Tap Confirm below to deploy it live.`,
+              reply: cleanReply || `I've prepared the update for ${parsed.filePath}. Tap Deploy below to push it live.`,
               pendingAction: {
                 type: "github_update",
                 filePath: parsed.filePath,
@@ -382,4 +289,4 @@ VOCAL CONVERSATION RULES:
   }
 
   return res.status(500).json({ error: `Gemini API Error: ${lastError}` });
-}
+          }
