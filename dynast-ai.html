@@ -3,202 +3,229 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>DYNAST — Executive Horology AI</title>
+  <title>DYNAST — Live AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    * { -webkit-tap-highlight-color: transparent; }
     body {
-      font-family: 'Inter', sans-serif;
-      background: radial-gradient(circle at 50% 28%, rgba(217, 119, 6, 0.12) 0%, rgba(10, 10, 10, 1) 55%, #000000 100%);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #030305;
+      overflow: hidden;
     }
-    .font-brand {
-      font-family: 'Cinzel Decorative', serif;
+    .font-brand { font-family: 'Cinzel Decorative', serif; }
+    .font-mono-tech { font-family: 'JetBrains Mono', monospace; }
+
+    /* Ambient Aurora Background */
+    .ambient-glow {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 38%, rgba(245, 158, 11, 0.11) 0%, transparent 55%),
+        radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.06) 0%, transparent 45%),
+        radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.06) 0%, transparent 45%);
+      pointer-events: none;
+      z-index: 0;
     }
-    .font-mono-tech {
-      font-family: 'JetBrains Mono', monospace;
+
+    .glass-pill {
+      background: rgba(15, 15, 20, 0.65);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
-    @keyframes spinSlow {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
+
+    .glass-panel {
+      background: rgba(12, 12, 16, 0.72);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(245, 158, 11, 0.18);
     }
-    @keyframes spinReverse {
-      from { transform: rotate(360deg); }
-      to { transform: rotate(0deg); }
+
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
     }
-    .bezel-outer {
-      animation: spinSlow 28s linear infinite;
-    }
-    .bezel-inner {
-      animation: spinReverse 18s linear infinite;
-    }
-    .glass-card {
-      background: rgba(12, 12, 14, 0.78);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-    }
+    .float-anim { animation: floatSlow 5s ease-in-out infinite; }
   </style>
 </head>
-<body class="min-h-screen text-white flex flex-col items-center justify-between p-5 select-none overflow-x-hidden">
+<body class="h-[100dvh] w-screen text-white flex flex-col items-center justify-between p-4 select-none relative">
 
-  <!-- LOCK SCREEN -->
-  <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full max-w-sm">
-    <div class="w-16 h-16 rounded-full border border-amber-500/40 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
-      <div class="w-10 h-10 rounded-full border border-dashed border-amber-400/60 bezel-outer"></div>
+  <div class="ambient-glow"></div>
+
+  <!-- PIN AUTHENTICATION SCREEN -->
+  <div id="lockScreen" class="relative z-20 h-full flex flex-col items-center justify-center w-full max-w-xs">
+    <div class="relative w-24 h-24 flex items-center justify-center mb-6">
+      <div class="absolute inset-0 rounded-full bg-amber-500/20 blur-xl animate-pulse"></div>
+      <div class="w-16 h-16 rounded-full border border-amber-400/40 flex items-center justify-center glass-pill">
+        <div class="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_15px_#fbbf24]"></div>
+      </div>
     </div>
-    <h1 class="text-3xl tracking-[0.35em] font-brand text-amber-400 mb-1">DYNAST</h1>
-    <p class="text-[10px] font-mono-tech tracking-[0.3em] text-neutral-400 mb-8">EXECUTIVE NEURAL CONCIERGE</p>
 
-    <div class="w-full glass-card border border-amber-500/25 rounded-2xl p-6 shadow-2xl">
+    <h1 class="text-2xl tracking-[0.4em] font-brand text-amber-300 mb-1">DYNAST</h1>
+    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">NEURAL VOICE INTERFACE</p>
+
+    <div class="w-full glass-panel rounded-3xl p-6 shadow-2xl">
       <input
         id="pinInput"
         type="password"
         inputmode="numeric"
-        placeholder="ENTER FOUNDER PIN"
+        placeholder="PASSCODE"
         onkeydown="if(event.key === 'Enter') unlockDynast()"
-        class="bg-black/80 border border-amber-500/30 rounded-xl px-4 py-3.5 text-center font-mono-tech text-sm tracking-[0.3em] text-amber-100 mb-4 w-full outline-none focus:border-amber-400 transition"
+        class="bg-black/60 border border-white/10 rounded-2xl px-4 py-3.5 text-center font-mono-tech text-sm tracking-[0.35em] text-amber-100 mb-4 w-full outline-none focus:border-amber-400/70 transition"
       />
-
-      <p id="pinError" class="text-xs text-red-400 text-center mb-3 hidden">Access Denied. Invalid Founder PIN.</p>
-
+      <p id="pinError" class="text-xs text-rose-400 text-center mb-3 hidden">Invalid Passcode</p>
       <button
         onclick="unlockDynast()"
-        class="bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 text-black font-semibold text-xs py-3.5 rounded-xl tracking-[0.25em] hover:brightness-110 transition w-full shadow-[0_0_25px_rgba(245,158,11,0.3)]"
+        class="bg-gradient-to-r from-amber-500 via-amber-300 to-amber-500 text-black font-semibold text-xs py-3.5 rounded-2xl tracking-[0.22em] hover:brightness-110 active:scale-[0.98] transition w-full shadow-[0_0_25px_rgba(245,158,11,0.3)]"
       >
-        AUTHENTICATE
+        INITIALIZE LIVE AI
       </button>
     </div>
   </div>
 
-  <!-- MAIN EXECUTIVE INTERFACE -->
-  <div id="mainScreen" class="hidden min-h-screen w-full max-w-lg flex flex-col items-center justify-between py-2">
+  <!-- MAIN FUTURISTIC AI INTERFACE -->
+  <div id="mainScreen" class="hidden relative z-10 h-full w-full max-w-lg flex flex-col items-center justify-between py-1">
 
-    <!-- Top Telemetry & Ecosystem Bar -->
-    <div class="w-full flex flex-col items-center">
-      <div class="w-full flex items-center justify-between px-1 mb-2">
-        <div class="flex items-center gap-2">
-          <span id="liveDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span id="clockText" class="text-[10px] font-mono-tech tracking-widest text-neutral-400">IST LIVE</span>
+    <!-- TOP FLOATING HUD BAR -->
+    <div class="w-full flex flex-col items-center z-30">
+      <div class="w-full flex items-center justify-between gap-2">
+        <!-- Status Pill -->
+        <div class="glass-pill px-3.5 py-1.5 rounded-full flex items-center gap-2">
+          <span id="statusDot" class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]"></span>
+          <span id="statusText" class="text-[10px] font-mono-tech tracking-[0.2em] text-neutral-200">LIVE READY</span>
         </div>
-        <div class="flex items-center gap-2">
-          <button onclick="toggleMute()" id="muteBtn" class="text-[10px] font-mono-tech px-2.5 py-1 rounded-full bg-neutral-900/90 border border-neutral-800 text-amber-300/90 hover:border-amber-500/40">
-            VOICE: ON
+
+        <!-- Center Brand Title -->
+        <h1 class="text-lg tracking-[0.38em] font-brand text-amber-300/90">DYNAST</h1>
+
+        <!-- Right Controls: Voice Persona & Ecosystem Drawer Toggle -->
+        <div class="flex items-center gap-1.5">
+          <button
+            onclick="toggleDrawer('voicePanel')"
+            class="glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300 hover:border-amber-400/50 transition"
+          >
+            VOICE
           </button>
-          <button onclick="toggleVoiceSettings()" class="text-[10px] font-mono-tech px-2.5 py-1 rounded-full bg-neutral-900/90 border border-neutral-800 text-neutral-400 hover:border-amber-500/40">
-            AUDIO TUNE
+          <button
+            onclick="toggleDrawer('hubPanel')"
+            class="glass-pill px-2.5 py-1.5 rounded-full text-[10px] font-mono-tech text-neutral-300 hover:border-white/30 transition"
+          >
+            HUB
           </button>
         </div>
       </div>
 
-      <h1 class="text-2xl tracking-[0.4em] font-brand text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 mt-1">
-        DYNAST
-      </h1>
-      <p id="statusText" class="text-[10px] font-mono-tech tracking-[0.25em] text-amber-300/70 mt-1">
-        STATUS: ONLINE • GOOGLE LIVE SYNC
-      </p>
-
-      <!-- Voice Selector Drawer (Hidden by default) -->
-      <div id="voiceDrawer" class="hidden w-full glass-card border border-amber-500/30 rounded-xl p-3 mt-3 text-xs">
+      <!-- Collapsible Gemini Live Voice Selector -->
+      <div id="voicePanel" class="hidden w-full glass-panel rounded-2xl p-3.5 mt-2.5 shadow-2xl">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-[10px] font-mono-tech uppercase tracking-wider text-amber-400">Select Neural Voice</span>
-          <span id="speedLabel" class="text-[10px] font-mono-tech text-neutral-400">Pace: 1.02x (Human)</span>
+          <span class="text-[10px] font-mono-tech uppercase tracking-widest text-amber-300">Gemini Live Vocal Persona</span>
+          <button onclick="toggleMute()" id="muteBtn" class="text-[10px] font-mono-tech text-emerald-400">AUDIO: ON</button>
         </div>
-        <select id="voiceSelect" onchange="changeVoice()" class="w-full bg-black border border-neutral-800 rounded-lg px-2.5 py-2 text-xs text-amber-100 outline-none mb-2"></select>
-        <div class="flex items-center gap-3">
-          <span class="text-[10px] text-neutral-400">Speed</span>
-          <input id="rateSlider" type="range" min="0.90" max="1.15" step="0.02" value="1.02" oninput="updateRate(this.value)" class="flex-1 accent-amber-400" />
+        <div class="grid grid-cols-5 gap-1.5">
+          <button onclick="selectGeminiVoice('Puck')" id="v-Puck" class="voice-chip py-2 rounded-xl text-[11px] font-medium border border-amber-400/60 bg-amber-500/20 text-amber-200">Puck</button>
+          <button onclick="selectGeminiVoice('Aoede')" id="v-Aoede" class="voice-chip py-2 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Aoede</button>
+          <button onclick="selectGeminiVoice('Kore')" id="v-Kore" class="voice-chip py-2 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Kore</button>
+          <button onclick="selectGeminiVoice('Charon')" id="v-Charon" class="voice-chip py-2 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Charon</button>
+          <button onclick="selectGeminiVoice('Fenrir')" id="v-Fenrir" class="voice-chip py-2 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Fenrir</button>
         </div>
       </div>
 
-      <!-- Ecosystem Quick Navigation Pills -->
-      <div class="flex flex-wrap items-center justify-center gap-1.5 mt-3 text-[10px]">
-        <a href="https://dynast.co.in" target="_blank" class="px-2.5 py-1 rounded-full glass-card border border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:text-amber-300 transition">Main Store</a>
-        <a href="https://dynast.co.in/bespoke" target="_blank" class="px-2.5 py-1 rounded-full glass-card border border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:text-amber-300 transition">Bespoke 3D</a>
-        <a href="https://dynast.co.in/admin" target="_blank" class="px-2.5 py-1 rounded-full glass-card border border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:text-amber-300 transition">Admin</a>
-        <a href="https://dynast.co.in/bespoke-admin" target="_blank" class="px-2.5 py-1 rounded-full glass-card border border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:text-amber-300 transition">Bespoke Admin</a>
-        <button onclick="clearHistory()" class="px-2.5 py-1 rounded-full bg-red-950/30 border border-red-900/40 text-red-300 hover:border-red-500/60 transition">Reset Memory</button>
+      <!-- Collapsible Ecosystem Hub Drawer -->
+      <div id="hubPanel" class="hidden w-full glass-panel rounded-2xl p-3 mt-2.5 flex flex-wrap items-center justify-center gap-2">
+        <a href="https://dynast.co.in" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-neutral-200 hover:border-amber-400/50">Main Store</a>
+        <a href="https://dynast.co.in/bespoke" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-neutral-200 hover:border-amber-400/50">Bespoke Studio</a>
+        <a href="https://dynast.co.in/admin" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-neutral-200 hover:border-amber-400/50">Admin</a>
+        <a href="https://dynast.co.in/bespoke-admin" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-neutral-200 hover:border-amber-400/50">Bespoke Admin</a>
+        <button onclick="clearHistory()" class="px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">Clear Memory</button>
       </div>
     </div>
 
-    <!-- CENTER CHRONOGRAPH NEURAL ORB -->
-    <div class="flex flex-col items-center my-3 w-full">
-      <div class="relative flex items-center justify-center">
-        <!-- Outer Horology Bezel Ring -->
-        <div id="outerRing" class="w-52 h-52 rounded-full border border-dashed border-amber-500/25 bezel-outer absolute pointer-events-none"></div>
-        <!-- Inner Chronograph Ring -->
-        <div id="innerRing" class="w-44 h-44 rounded-full border border-amber-400/20 bezel-inner absolute pointer-events-none"></div>
-
-        <!-- Interactive Core Button -->
-        <button
-          id="orbBtn"
-          onclick="startListening()"
-          class="relative z-10 w-36 h-36 rounded-full flex items-center justify-center border border-amber-500/50 bg-gradient-to-b from-neutral-900 via-black to-neutral-950 shadow-[0_0_45px_rgba(245,158,11,0.25)] transition-all duration-300 active:scale-95 hover:scale-105"
-        >
-          <div class="w-28 h-28 rounded-full bg-gradient-to-tr from-black via-neutral-950 to-amber-500/15 border border-amber-400/30 flex flex-col items-center justify-center px-2">
-            <span id="orbLabel" class="text-[10px] font-mono-tech tracking-[0.22em] text-amber-300">TAP TO SPEAK</span>
-            <span id="latencyBadge" class="text-[9px] font-mono-tech text-neutral-500 mt-1">TURBO READY</span>
-          </div>
-        </button>
+    <!-- CENTER FLUID PLASMA AI CORE & SUBTITLES -->
+    <div class="flex-1 flex flex-col items-center justify-center w-full relative my-1">
+      <!-- Interactive 60FPS Fluid Neural Orb Canvas -->
+      <div class="relative flex items-center justify-center cursor-pointer" onclick="handleOrbTap()">
+        <canvas id="orbCanvas" width="320" height="320" class="w-[260px] h-[260px] sm:w-[290px] sm:h-[290px]"></canvas>
+        <div class="absolute pointer-events-none flex flex-col items-center justify-center">
+          <span id="orbCenterLabel" class="text-[10px] font-mono-tech tracking-[0.28em] text-amber-200/80 uppercase">Tap to Speak</span>
+          <span id="latencyLabel" class="text-[9px] font-mono-tech text-neutral-400 mt-1 opacity-75">GEMINI LIVE VOICE</span>
+        </div>
       </div>
 
-      <!-- User Spoken Transcript -->
-      <p id="transcriptText" class="text-xs text-neutral-400 italic mt-5 text-center max-w-md hidden"></p>
+      <!-- Spoken User Query Pill -->
+      <p id="transcriptText" class="text-xs text-neutral-400/90 italic mt-1 mb-2 text-center max-w-sm px-3 hidden"></p>
 
-      <!-- AI Response Display Card -->
-      <div class="mt-4 w-full glass-card border border-amber-500/25 rounded-2xl p-5 text-center shadow-[0_10px_40px_rgba(0,0,0,0.8)]">
-        <p id="replyText" class="text-amber-50/95 leading-relaxed text-sm font-normal whitespace-pre-line">
-          Systems online. Google live feed, Supabase, and GitHub repositories are synchronized. How can I assist you?
+      <!-- Clean, Floating AI Subtitle Display -->
+      <div class="w-full max-w-md px-3 text-center float-anim">
+        <p id="replyText" class="text-base sm:text-lg font-light text-amber-50/95 leading-relaxed tracking-wide max-h-40 overflow-y-auto px-2">
+          I'm online and listening. Tap the core or enable Live Chat to talk naturally.
         </p>
       </div>
 
-      <!-- Staged GitHub Update Confirmation Card -->
-      <div id="confirmBox" class="hidden mt-3 w-full glass-card border border-amber-400/70 rounded-2xl p-4 text-center shadow-lg">
-        <p class="text-[10px] font-mono-tech uppercase tracking-[0.25em] text-amber-400 font-semibold mb-1">
-          Staged Repository Update
-        </p>
+      <!-- Staged GitHub Update Confirmation Modal -->
+      <div id="confirmBox" class="hidden mt-3 w-full glass-panel rounded-2xl p-4 text-center shadow-2xl">
+        <p class="text-[10px] font-mono-tech uppercase tracking-[0.25em] text-amber-300 mb-1">Confirm Website Deployment</p>
         <p id="confirmDetails" class="text-xs text-neutral-300 mb-3"></p>
         <div class="flex gap-3 justify-center">
-          <button
-            onclick="executeConfirmedAction()"
-            class="bg-amber-500 text-black font-semibold px-4 py-2 rounded-lg text-xs tracking-wider hover:bg-amber-400 transition"
-          >
-            CONFIRM & DEPLOY
+          <button onclick="executeConfirmedAction()" class="bg-amber-400 text-black font-semibold px-5 py-2 rounded-xl text-xs tracking-wider hover:brightness-110">
+            DEPLOY NOW
           </button>
-          <button
-            onclick="cancelStagedAction()"
-            class="bg-neutral-800 text-neutral-300 px-4 py-2 rounded-lg text-xs hover:bg-neutral-700 transition"
-          >
+          <button onclick="cancelStagedAction()" class="bg-white/10 text-neutral-300 px-4 py-2 rounded-xl text-xs hover:bg-white/15">
             CANCEL
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Bottom Quick Command Chips & Input Bar -->
-    <div class="w-full flex flex-col gap-2">
-      <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
-        <button onclick="sendCommand('What are the top business and world news headlines right now?')" class="shrink-0 px-3 py-1.5 rounded-full glass-card border border-neutral-800 text-neutral-300 hover:border-amber-500/40">
-          🌐 Live News
+    <!-- BOTTOM FUTURISTIC COMMAND DOCK -->
+    <div class="w-full flex flex-col gap-2.5 z-30 pb-1">
+      <!-- Quick Action Pills -->
+      <div class="flex items-center justify-center gap-2 text-[11px]">
+        <button
+          id="liveModeBtn"
+          onclick="toggleContinuousLive()"
+          class="glass-pill px-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-neutral-300 hover:border-amber-400/50 transition"
+        >
+          <span id="liveModeDot" class="w-1.5 h-1.5 rounded-full bg-neutral-500"></span>
+          <span>Hands-Free Live: OFF</span>
         </button>
-        <button onclick="sendCommand('Check my Supabase database tables and recent orders')" class="shrink-0 px-3 py-1.5 rounded-full glass-card border border-neutral-800 text-neutral-300 hover:border-amber-500/40">
-          ⌚ Check Orders
+        <button
+          onclick="sendCommand('Give me a quick update on today\'s top business and tech news')"
+          class="glass-pill px-3 py-1.5 rounded-full text-neutral-300 hover:border-amber-400/50 transition"
+        >
+          Live Briefing
         </button>
-        <button onclick="sendCommand('Inspect admin.html and summarize its current controls')" class="shrink-0 px-3 py-1.5 rounded-full glass-card border border-neutral-800 text-neutral-300 hover:border-amber-500/40">
-          🛡️ Audit Admin
+        <button
+          onclick="sendCommand('Check my Supabase orders and store status')"
+          class="glass-pill px-3 py-1.5 rounded-full text-neutral-300 hover:border-amber-400/50 transition"
+        >
+          Store Status
         </button>
       </div>
 
-      <form onsubmit="handleTextSubmit(event)" class="w-full flex gap-2">
+      <!-- Sleek Glass Input Dock -->
+      <form onsubmit="handleTextSubmit(event)" class="w-full glass-pill rounded-2xl p-1.5 flex items-center gap-2 shadow-2xl">
+        <button
+          type="button"
+          onclick="handleOrbTap()"
+          class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-300 hover:bg-amber-500/25 transition shrink-0"
+          title="Speak"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+          </svg>
+        </button>
         <input
           id="textInput"
           type="text"
-          placeholder="Ask anything or command a website update..."
-          class="flex-1 glass-card border border-neutral-800 rounded-xl px-4 py-3.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500/70 transition"
+          placeholder="Message DYNAST or speak..."
+          class="flex-1 bg-transparent px-2 py-2 text-sm text-white placeholder-neutral-500 outline-none"
         />
         <button
           type="submit"
-          class="bg-gradient-to-r from-amber-500 to-amber-400 text-black font-semibold px-5 py-3.5 rounded-xl text-xs tracking-wider hover:brightness-110 transition"
+          class="bg-gradient-to-r from-amber-500 to-amber-300 text-black font-semibold px-4 py-2.5 rounded-xl text-xs tracking-wider hover:brightness-110 active:scale-95 transition shrink-0"
         >
           SEND
         </button>
@@ -211,24 +238,107 @@
     let chatHistory = JSON.parse(localStorage.getItem("DYNAST_CHAT_MEMORY") || "[]");
     let stagedAction = null;
     let isMuted = false;
-    let speechRate = parseFloat(localStorage.getItem("DYNAST_VOICE_RATE") || "1.02");
-    let selectedVoiceURI = localStorage.getItem("DYNAST_VOICE_URI") || "";
+    let continuousLiveMode = false;
+    let geminiVoice = localStorage.getItem("DYNAST_GEMINI_VOICE") || "Puck";
+    let currentState = "ONLINE"; // ONLINE | LISTENING | THINKING | SPEAKING
 
-    // Purge any old habit of ", Hanzalah" stored in browser memory immediately on load
+    // Web Audio API Context & Real-Time Frequency Analyser
+    let audioCtx = null;
+    let analyser = null;
+    let dataArray = null;
+    let currentAudioSource = null;
+
+    // Clean any old ", Hanzalah" habits from browser memory
     chatHistory = chatHistory.map((item) => ({
       role: item.role,
       text: String(item.text || "").replace(/,\s*Hanzalah([.!?])/gi, "$1")
     }));
     saveHistory();
 
-    // Update live IST clock
-    function updateClock() {
-      const now = new Date();
-      document.getElementById("clockText").textContent =
-        now.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) + " IST";
+    function initAudioEngine() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.82;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+      }
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
     }
-    setInterval(updateClock, 10000);
-    updateClock();
+
+    function unlockDynast() {
+      const pinVal = document.getElementById("pinInput").value.trim();
+      if (pinVal !== FOUNDER_PIN) {
+        document.getElementById("pinError").classList.remove("hidden");
+        return;
+      }
+      initAudioEngine();
+      document.getElementById("lockScreen").classList.add("hidden");
+      document.getElementById("mainScreen").classList.remove("hidden");
+      selectGeminiVoice(geminiVoice, true);
+      startOrbAnimation();
+    }
+
+    function toggleDrawer(id) {
+      const el = document.getElementById(id);
+      const otherId = id === "voicePanel" ? "hubPanel" : "voicePanel";
+      document.getElementById(otherId).classList.add("hidden");
+      el.classList.toggle("hidden");
+    }
+
+    function selectGeminiVoice(voice, silent = false) {
+      geminiVoice = voice;
+      localStorage.setItem("DYNAST_GEMINI_VOICE", voice);
+      ["Puck", "Aoede", "Kore", "Charon", "Fenrir"].forEach((v) => {
+        const btn = document.getElementById("v-" + v);
+        if (!btn) return;
+        if (v === voice) {
+          btn.className = "voice-chip py-2 rounded-xl text-[11px] font-medium border border-amber-400/60 bg-amber-500/20 text-amber-200";
+        } else {
+          btn.className = "voice-chip py-2 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400";
+        }
+      });
+      document.getElementById("latencyLabel").textContent = `VOICE: ${voice.toUpperCase()}`;
+      if (!silent) {
+        document.getElementById("voicePanel").classList.add("hidden");
+        speakWithGeminiVoice(`Voice switched to ${voice}. Ready whenever you are.`);
+      }
+    }
+
+    function toggleContinuousLive() {
+      initAudioEngine();
+      continuousLiveMode = !continuousLiveMode;
+      const btn = document.getElementById("liveModeBtn");
+      if (continuousLiveMode) {
+        btn.className = "glass-pill px-3.5 py-1.5 rounded-full flex items-center gap-1.5 border-amber-400/60 text-amber-200";
+        btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span><span>Hands-Free Live: ON</span>`;
+        startListening();
+      } else {
+        btn.className = "glass-pill px-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-neutral-300";
+        btn.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-neutral-500"></span><span>Hands-Free Live: OFF</span>`;
+      }
+    }
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      stopCurrentAudio();
+      const btn = document.getElementById("muteBtn");
+      btn.textContent = isMuted ? "AUDIO: MUTED" : "AUDIO: ON";
+      btn.className = isMuted ? "text-[10px] font-mono-tech text-rose-400" : "text-[10px] font-mono-tech text-emerald-400";
+    }
+
+    function stopCurrentAudio() {
+      if (currentAudioSource) {
+        try { currentAudioSource.stop(); } catch (e) {}
+        currentAudioSource = null;
+      }
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
 
     function saveHistory() {
       localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-10)));
@@ -239,158 +349,143 @@
       stagedAction = null;
       localStorage.removeItem("DYNAST_CHAT_MEMORY");
       document.getElementById("confirmBox").classList.add("hidden");
-      document.getElementById("replyText").textContent = "Conversation memory reset. Ready for your next command.";
-    }
-
-    function unlockDynast() {
-      const pinVal = document.getElementById("pinInput").value.trim();
-      if (pinVal !== FOUNDER_PIN) {
-        document.getElementById("pinError").classList.remove("hidden");
-        return;
-      }
-      document.getElementById("lockScreen").classList.add("hidden");
-      document.getElementById("mainScreen").classList.remove("hidden");
-      populateVoices();
-    }
-
-    function toggleMute() {
-      isMuted = !isMuted;
-      if (isMuted && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-      const btn = document.getElementById("muteBtn");
-      btn.textContent = isMuted ? "VOICE: MUTED" : "VOICE: ON";
-      btn.className = isMuted
-        ? "text-[10px] font-mono-tech px-2.5 py-1 rounded-full bg-neutral-900 border border-red-900/50 text-red-400"
-        : "text-[10px] font-mono-tech px-2.5 py-1 rounded-full bg-neutral-900/90 border border-neutral-800 text-amber-300/90";
-    }
-
-    function toggleVoiceSettings() {
-      const drawer = document.getElementById("voiceDrawer");
-      drawer.classList.toggle("hidden");
-      populateVoices();
-    }
-
-    function updateRate(val) {
-      speechRate = parseFloat(val);
-      localStorage.setItem("DYNAST_VOICE_RATE", String(speechRate));
-      document.getElementById("speedLabel").textContent = `Pace: ${speechRate.toFixed(2)}x (Human)`;
-    }
-
-    function changeVoice() {
-      const select = document.getElementById("voiceSelect");
-      selectedVoiceURI = select.value;
-      localStorage.setItem("DYNAST_VOICE_URI", selectedVoiceURI);
-      speakOutLoud("Voice profile updated. Standing by.");
-    }
-
-    function populateVoices() {
-      if (!("speechSynthesis" in window)) return;
-      const voices = window.speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
-      const select = document.getElementById("voiceSelect");
-      if (!voices.length || !select) return;
-
-      // Rank natural/neural English voices highest
-      voices.sort((a, b) => {
-        const score = (v) =>
-          (v.name.includes("Natural") || v.name.includes("Online") ? 5 : 0) +
-          (v.name.includes("Google UK English Male") ? 4 : 0) +
-          (v.name.includes("Google US English") ? 3 : 0) +
-          (v.lang === "en-GB" || v.lang === "en-IN" ? 2 : 0);
-        return score(b) - score(a);
-      });
-
-      select.innerHTML = "";
-      voices.forEach((v) => {
-        const opt = document.createElement("option");
-        opt.value = v.voiceURI;
-        opt.textContent = `${v.name} (${v.lang})`;
-        if (selectedVoiceURI && v.voiceURI === selectedVoiceURI) opt.selected = true;
-        select.appendChild(opt);
-      });
-
-      document.getElementById("rateSlider").value = speechRate;
-      document.getElementById("speedLabel").textContent = `Pace: ${speechRate.toFixed(2)}x (Human)`;
-    }
-
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = populateVoices;
+      document.getElementById("hubPanel").classList.add("hidden");
+      animateReplyText("Memory cleared. What would you like to focus on next?");
     }
 
     function setVisualStatus(state, latencyMs = null) {
-      const statusEl = document.getElementById("statusText");
-      const orb = document.getElementById("orbBtn");
-      const label = document.getElementById("orbLabel");
-      const badge = document.getElementById("latencyBadge");
+      currentState = state;
+      const statusText = document.getElementById("statusText");
+      const statusDot = document.getElementById("statusDot");
+      const centerLabel = document.getElementById("orbCenterLabel");
+      const latencyLabel = document.getElementById("latencyLabel");
 
       if (latencyMs) {
-        badge.textContent = `${(latencyMs / 1000).toFixed(1)}s RESPONSE`;
+        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • ${geminiVoice.toUpperCase()}`;
       }
 
-      statusEl.textContent = `STATUS: ${state} • GOOGLE LIVE SYNC`;
-      orb.className = "relative z-10 w-36 h-36 rounded-full flex items-center justify-center border transition-all duration-300 ";
-
       if (state === "LISTENING") {
-        orb.className += "border-amber-300 bg-amber-950/30 shadow-[0_0_80px_rgba(251,191,36,0.85)] scale-110";
-        label.textContent = "LISTENING";
-      } else if (state === "SPEAKING") {
-        orb.className += "border-amber-400 bg-neutral-950 shadow-[0_0_70px_rgba(245,158,11,0.75)] scale-105";
-        label.textContent = "SPEAKING";
+        statusText.textContent = "LISTENING LIVE";
+        statusDot.className = "w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_12px_#38bdf8] animate-ping";
+        centerLabel.textContent = "Listening...";
       } else if (state === "THINKING") {
-        orb.className += "border-amber-500/80 bg-neutral-950 shadow-[0_0_55px_rgba(217,119,6,0.6)] animate-pulse";
-        label.textContent = "PROCESSING";
+        statusText.textContent = "SYNTHESIZING";
+        statusDot.className = "w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_12px_#c084fc] animate-pulse";
+        centerLabel.textContent = "Thinking...";
+      } else if (state === "SPEAKING") {
+        statusText.textContent = "SPEAKING LIVE";
+        statusDot.className = "w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_12px_#fbbf24] animate-pulse";
+        centerLabel.textContent = "Tap to Interrupt";
       } else {
-        orb.className += "border-amber-500/50 bg-gradient-to-b from-neutral-900 via-black to-neutral-950 shadow-[0_0_45px_rgba(245,158,11,0.25)] hover:scale-105";
-        label.textContent = "TAP TO SPEAK";
+        statusText.textContent = "LIVE READY";
+        statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]";
+        centerLabel.textContent = "Tap to Speak";
       }
     }
 
-    // Natural Human Speech Engine with Sentence Streaming & Native Pitch (1.0)
-    function speakOutLoud(rawText) {
-      if (isMuted || !("speechSynthesis" in window)) {
-        setVisualStatus("ONLINE");
-        return;
-      }
-
-      window.speechSynthesis.cancel();
-
-      // Strip markdown characters or code blocks so speech sounds 100% human
-      const cleanText = String(rawText)
-        .replace(/[*#_`~>]/g, "")
-        .replace(/https?:\/\/\S+/g, "link")
-        .trim();
-
-      if (!cleanText) {
-        setVisualStatus("ONLINE");
-        return;
-      }
-
-      const voices = window.speechSynthesis.getVoices();
-      const chosenVoice =
-        voices.find((v) => v.voiceURI === selectedVoiceURI) ||
-        voices.find((v) => v.name.includes("Natural") && v.lang.startsWith("en")) ||
-        voices.find((v) => v.name.includes("Google UK English Male")) ||
-        voices.find((v) => v.name.includes("Google US English")) ||
-        voices.find((v) => v.lang === "en-GB" || v.lang === "en-IN") ||
-        voices.find((v) => v.lang.startsWith("en"));
-
-      // Split into natural sentence chunks for fluid pacing and zero mobile cutoff
-      const sentences = cleanText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanText];
-
-      sentences.forEach((sentence, idx) => {
-        const utter = new SpeechSynthesisUtterance(sentence.trim());
-        if (chosenVoice) utter.voice = chosenVoice;
-        // Native pitch (1.0) and human conversational pace (1.02) avoid robotic pitch-shift artifacts
-        utter.pitch = 1.0;
-        utter.rate = speechRate;
-
-        if (idx === 0) utter.onstart = () => setVisualStatus("SPEAKING");
-        if (idx === sentences.length - 1) {
-          utter.onend = () => setVisualStatus("ONLINE");
-          utter.onerror = () => setVisualStatus("ONLINE");
+    // Smooth word-by-word subtitle reveal
+    function animateReplyText(text) {
+      const el = document.getElementById("replyText");
+      const words = String(text).split(" ");
+      el.textContent = "";
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i >= words.length) {
+          clearInterval(interval);
+          return;
         }
+        el.textContent += (i === 0 ? "" : " ") + words[i];
+        i++;
+      }, 28);
+    }
+
+    // Play Gemini Native 24kHz PCM or Cloud MP3 through Web Audio API + Frequency Analyser
+    async function speakWithGeminiVoice(rawText) {
+      if (isMuted) {
+        setVisualStatus("ONLINE");
+        return;
+      }
+
+      initAudioEngine();
+      stopCurrentAudio();
+      setVisualStatus("SPEAKING");
+
+      try {
+        const res = await fetch("/api/dynast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ttsOnly: true,
+            ttsText: rawText,
+            voiceName: geminiVoice
+          })
+        });
+
+        const data = await res.json();
+
+        if (data && data.audioBase64) {
+          const binaryString = atob(data.audioBase64);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+
+          let audioBuffer;
+          if (data.mimeType && (data.mimeType.includes("L16") || data.mimeType.includes("pcm"))) {
+            // Decode raw 16-bit 24kHz mono PCM from Gemini Native Voice
+            const int16 = new Int16Array(bytes.buffer);
+            const float32 = new Float32Array(int16.length);
+            for (let i = 0; i < int16.length; i++) {
+              float32[i] = int16[i] / 32768.0;
+            }
+            audioBuffer = audioCtx.createBuffer(1, float32.length, 24000);
+            audioBuffer.getChannelData(0).set(float32);
+          } else {
+            // Decode MP3/WAV buffer
+            audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+          }
+
+          const source = audioCtx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(analyser);
+          analyser.connect(audioCtx.destination);
+          currentAudioSource = source;
+
+          source.onended = () => {
+            currentAudioSource = null;
+            setVisualStatus("ONLINE");
+            if (continuousLiveMode) {
+              setTimeout(() => startListening(), 350);
+            }
+          };
+
+          source.start(0);
+          return;
+        }
+      } catch (e) {}
+
+      // Fallback to browser Natural Voice if offline
+      if ("speechSynthesis" in window) {
+        const clean = String(rawText).replace(/[*#_`~>]/g, "").trim();
+        const utter = new SpeechSynthesisUtterance(clean);
+        const voices = window.speechSynthesis.getVoices();
+        const natural =
+          voices.find((v) => v.name.includes("Natural") && v.lang.startsWith("en")) ||
+          voices.find((v) => v.name.includes("Google") && v.lang.startsWith("en")) ||
+          voices.find((v) => v.lang.startsWith("en"));
+        if (natural) utter.voice = natural;
+        utter.rate = 1.02;
+        utter.pitch = 1.0;
+        utter.onend = () => {
+          setVisualStatus("ONLINE");
+          if (continuousLiveMode) setTimeout(() => startListening(), 350);
+        };
+        utter.onerror = () => setVisualStatus("ONLINE");
         window.speechSynthesis.speak(utter);
-      });
+      } else {
+        setVisualStatus("ONLINE");
+      }
     }
 
     async function executeConfirmedAction() {
@@ -409,33 +504,35 @@
 
         if (!res.ok || data.error) {
           setVisualStatus("ONLINE");
-          document.getElementById("replyText").textContent = "Error: " + (data.error || "Failed to push update.");
+          animateReplyText("Error: " + (data.error || "Failed to push update."));
           return;
         }
 
         chatHistory.push({ role: "DYNAST", text: data.reply });
         saveHistory();
-        document.getElementById("replyText").textContent = data.reply;
-        speakOutLoud(data.reply);
+        animateReplyText(data.reply);
+        speakWithGeminiVoice(data.reply);
       } catch (err) {
         setVisualStatus("ONLINE");
-        document.getElementById("replyText").textContent = "Network Error: " + err.message;
+        animateReplyText("Network Error: " + err.message);
       }
     }
 
     function cancelStagedAction() {
       stagedAction = null;
       document.getElementById("confirmBox").classList.add("hidden");
-      const msg = "Staged repository update cancelled.";
-      document.getElementById("replyText").textContent = msg;
-      speakOutLoud(msg);
+      const msg = "Update cancelled.";
+      animateReplyText(msg);
+      speakWithGeminiVoice(msg);
     }
 
     async function sendCommand(commandText) {
       if (!commandText.trim()) return;
+      initAudioEngine();
+      stopCurrentAudio();
 
       const lower = commandText.trim().toLowerCase();
-      if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "yes confirm" || lower === "deploy")) {
+      if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "deploy" || lower === "yes")) {
         await executeConfirmedAction();
         return;
       }
@@ -447,37 +544,22 @@
       transcriptEl.textContent = "“" + commandText + "”";
       transcriptEl.classList.remove("hidden");
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
-
       try {
         const res = await fetch("/api/dynast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: commandText,
-            chatHistory: chatHistory,
-            fastMode: true
-          }),
-          signal: controller.signal
+            chatHistory: chatHistory
+          })
         });
-        clearTimeout(timeoutId);
 
         const elapsed = performance.now() - startTime;
-        const rawText = await res.text();
-        let data;
-        try {
-          data = JSON.parse(rawText);
-        } catch (e) {
-          setVisualStatus("ONLINE");
-          document.getElementById("replyText").textContent =
-            "Server Error: /api/dynast returned non-JSON (" + rawText.slice(0, 100) + ").";
-          return;
-        }
+        const data = await res.json();
 
         if (!res.ok || data.error) {
           setVisualStatus("ONLINE");
-          document.getElementById("replyText").textContent = data.error;
+          animateReplyText(data.error || "Something went wrong.");
           return;
         }
 
@@ -492,16 +574,12 @@
         chatHistory.push({ role: "DYNAST", text: data.reply });
         saveHistory();
 
-        setVisualStatus("ONLINE", elapsed);
-        document.getElementById("replyText").textContent = data.reply;
-        speakOutLoud(data.reply);
+        setVisualStatus("SPEAKING", elapsed);
+        animateReplyText(data.reply);
+        speakWithGeminiVoice(data.reply);
       } catch (err) {
-        clearTimeout(timeoutId);
         setVisualStatus("ONLINE");
-        document.getElementById("replyText").textContent =
-          err.name === "AbortError"
-            ? "Request timed out. Please tap Send again."
-            : "Connection Error: " + err.message;
+        animateReplyText("Connection interrupted. Tap the orb to try again.");
       }
     }
 
@@ -513,19 +591,126 @@
       sendCommand(val);
     }
 
+    function handleOrbTap() {
+      initAudioEngine();
+      if (currentState === "SPEAKING") {
+        stopCurrentAudio();
+        setVisualStatus("ONLINE");
+        return;
+      }
+      startListening();
+    }
+
     function startListening() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
-        alert("Please use Google Chrome for voice commands.");
+        alert("Please use Google Chrome for live voice chat.");
         return;
       }
-      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      stopCurrentAudio();
       const recognition = new SpeechRecognition();
       recognition.lang = "en-IN";
+      recognition.interimResults = false;
       recognition.onstart = () => setVisualStatus("LISTENING");
-      recognition.onresult = (e) => sendCommand(e.results[0][0].transcript);
+      recognition.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        sendCommand(text);
+      };
       recognition.onerror = () => setVisualStatus("ONLINE");
+      recognition.onend = () => {
+        if (currentState === "LISTENING") setVisualStatus("ONLINE");
+      };
       recognition.start();
+    }
+
+    // 60FPS FUTURISTIC FLUID PLASMA & AUDIO-REACTIVE ORB RENDERER
+    function startOrbAnimation() {
+      const canvas = document.getElementById("orbCanvas");
+      const ctx = canvas.getContext("2d");
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      let time = 0;
+
+      function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Calculate real-time audio energy from Web Audio API AnalyserNode
+        let audioEnergy = 0;
+        if (analyser && currentState === "SPEAKING") {
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < 32; i++) sum += dataArray[i];
+          audioEnergy = sum / (32 * 255); // 0.0 to 1.0
+        } else if (currentState === "LISTENING") {
+          audioEnergy = 0.22 + Math.sin(time * 6) * 0.12;
+        } else if (currentState === "THINKING") {
+          audioEnergy = 0.35 + Math.sin(time * 10) * 0.15;
+        } else {
+          audioEnergy = 0.05 + Math.sin(time * 2) * 0.03;
+        }
+
+        // Choose dynamic color palette by AI state
+        let primaryRGB = "245, 158, 11"; // Gold
+        let accentRGB = "251, 191, 36";
+        if (currentState === "LISTENING") {
+          primaryRGB = "56, 189, 248"; // Cyan
+          accentRGB = "125, 211, 252";
+        } else if (currentState === "THINKING") {
+          primaryRGB = "168, 85, 247"; // Quantum Violet
+          accentRGB = "245, 158, 11";
+        }
+
+        const baseRadius = 68 + audioEnergy * 28;
+
+        // Outer Ambient Halo
+        const glowGrad = ctx.createRadialGradient(cx, cy, baseRadius * 0.3, cx, cy, baseRadius * 1.9);
+        glowGrad.addColorStop(0, `rgba(${primaryRGB}, ${0.28 + audioEnergy * 0.35})`);
+        glowGrad.addColorStop(0.5, `rgba(${accentRGB}, ${0.10 + audioEnergy * 0.15})`);
+        glowGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseRadius * 1.9, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 4 Fluid Harmonic Plasma Waves
+        for (let layer = 0; layer < 4; layer++) {
+          ctx.beginPath();
+          const points = 90;
+          const speed = (layer % 2 === 0 ? 1 : -1) * (1.8 + layer * 0.6);
+          const waveAmp = (4 + layer * 3.5) * (1 + audioEnergy * 3.2);
+
+          for (let i = 0; i <= points; i++) {
+            const angle = (i / points) * Math.PI * 2;
+            const harmonic =
+              Math.sin(angle * (3 + layer) + time * speed) * waveAmp +
+              Math.cos(angle * (5 - layer) - time * 2.2) * (waveAmp * 0.5);
+            const r = baseRadius + harmonic;
+            const x = cx + Math.cos(angle) * r;
+            const y = cy + Math.sin(angle) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.strokeStyle = `rgba(${layer % 2 === 0 ? primaryRGB : accentRGB}, ${0.42 - layer * 0.08 + audioEnergy * 0.25})`;
+          ctx.lineWidth = 1.6 + audioEnergy * 1.5;
+          ctx.stroke();
+        }
+
+        // Inner Core Sphere
+        const coreGrad = ctx.createRadialGradient(cx - 12, cy - 12, 8, cx, cy, baseRadius * 0.92);
+        coreGrad.addColorStop(0, `rgba(255, 255, 255, ${0.18 + audioEnergy * 0.3})`);
+        coreGrad.addColorStop(0.45, `rgba(${primaryRGB}, ${0.15 + audioEnergy * 0.2})`);
+        coreGrad.addColorStop(1, "rgba(5, 5, 10, 0.92)");
+        ctx.fillStyle = coreGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseRadius * 0.92, 0, Math.PI * 2);
+        ctx.fill();
+
+        time += 0.025 + audioEnergy * 0.04;
+        requestAnimationFrame(render);
+      }
+
+      render();
     }
   </script>
 </body>
