@@ -2,86 +2,172 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DYNAST — Executive AI Interface</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>DYNAST — Executive Horology AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at 50% 28%, rgba(217, 119, 6, 0.12) 0%, rgba(10, 10, 10, 1) 55%, #000000 100%);
+    }
+    .font-brand {
+      font-family: 'Cinzel Decorative', serif;
+    }
+    .font-mono-tech {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes spinReverse {
+      from { transform: rotate(360deg); }
+      to { transform: rotate(0deg); }
+    }
+    .bezel-outer {
+      animation: spinSlow 28s linear infinite;
+    }
+    .bezel-inner {
+      animation: spinReverse 18s linear infinite;
+    }
+    .glass-card {
+      background: rgba(12, 12, 14, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+  </style>
 </head>
-<body class="min-h-screen bg-black text-white flex flex-col items-center justify-between p-6 select-none">
+<body class="min-h-screen text-white flex flex-col items-center justify-between p-5 select-none overflow-x-hidden">
 
-  <!-- PIN Screen -->
+  <!-- LOCK SCREEN -->
   <div id="lockScreen" class="min-h-screen flex flex-col items-center justify-center w-full max-w-sm">
-    <h1 class="text-3xl tracking-[0.35em] font-serif text-amber-400 mb-2">DYNAST</h1>
-    <p class="text-xs tracking-widest text-neutral-400 mb-6">FOUNDER COMMAND (HANZALAH)</p>
+    <div class="w-16 h-16 rounded-full border border-amber-500/40 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
+      <div class="w-10 h-10 rounded-full border border-dashed border-amber-400/60 bezel-outer"></div>
+    </div>
+    <h1 class="text-3xl tracking-[0.35em] font-brand text-amber-400 mb-1">DYNAST</h1>
+    <p class="text-[10px] font-mono-tech tracking-[0.3em] text-neutral-400 mb-8">EXECUTIVE NEURAL CONCIERGE</p>
 
-    <input
-      id="pinInput"
-      type="password"
-      inputmode="numeric"
-      placeholder="Founder PIN (060709)"
-      onkeydown="if(event.key === 'Enter') unlockDynast()"
-      class="bg-neutral-900 border border-amber-500/40 rounded px-4 py-3 text-center tracking-widest text-white mb-4 w-full outline-none focus:border-amber-400"
-    />
+    <div class="w-full glass-card border border-amber-500/25 rounded-2xl p-6 shadow-2xl">
+      <input
+        id="pinInput"
+        type="password"
+        inputmode="numeric"
+        placeholder="ENTER FOUNDER PIN"
+        onkeydown="if(event.key === 'Enter') unlockDynast()"
+        class="bg-black/80 border border-amber-500/30 rounded-xl px-4 py-3.5 text-center font-mono-tech text-sm tracking-[0.3em] text-amber-100 mb-4 w-full outline-none focus:border-amber-400 transition"
+      />
 
-    <p id="pinError" class="text-xs text-red-400 mb-3 hidden">Invalid PIN.</p>
+      <p id="pinError" class="text-xs text-red-400 text-center mb-3 hidden">Access Denied. Invalid Founder PIN.</p>
 
-    <button
-      onclick="unlockDynast()"
-      class="bg-amber-500 text-black font-semibold px-8 py-2.5 rounded tracking-wider hover:bg-amber-400 w-full"
-    >
-      INITIALIZE
-    </button>
+      <button
+        onclick="unlockDynast()"
+        class="bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 text-black font-semibold text-xs py-3.5 rounded-xl tracking-[0.25em] hover:brightness-110 transition w-full shadow-[0_0_25px_rgba(245,158,11,0.3)]"
+      >
+        AUTHENTICATE
+      </button>
+    </div>
   </div>
 
-  <!-- Main Voice Interface -->
-  <div id="mainScreen" class="hidden min-h-screen w-full flex flex-col items-center justify-between py-4">
-    <div class="text-center w-full max-w-md">
-      <h1 class="text-2xl tracking-[0.4em] font-serif text-amber-400">DYNAST</h1>
-      <p id="statusText" class="text-xs tracking-widest text-amber-200/60 mt-1">STATUS: ONLINE (HANZALAH)</p>
+  <!-- MAIN EXECUTIVE INTERFACE -->
+  <div id="mainScreen" class="hidden min-h-screen w-full max-w-lg flex flex-col items-center justify-between py-2">
 
-      <!-- Ecosystem Quick Links -->
-      <div class="flex flex-wrap items-center justify-center gap-2 mt-3 text-[10px] text-neutral-400">
-        <a href="https://dynast.co.in" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Main Site</a>
-        <a href="https://dynast.co.in/bespoke" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Studio</a>
-        <a href="https://dynast.co.in/admin" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Admin</a>
-        <a href="https://dynast.co.in/bespoke-admin" target="_blank" class="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 hover:border-amber-500/50">Bespoke Admin</a>
-        <button onclick="clearHistory()" class="px-2.5 py-1 rounded bg-neutral-950 border border-red-900/40 text-red-400 hover:border-red-500/60">Clear Memory</button>
+    <!-- Top Telemetry & Ecosystem Bar -->
+    <div class="w-full flex flex-col items-center">
+      <div class="w-full flex items-center justify-between px-1 mb-2">
+        <div class="flex items-center gap-2">
+          <span id="liveDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="clockText" class="text-[10px] font-mono-tech tracking-widest text-neutral-400">IST LIVE</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="toggleMute()" id="muteBtn" class="text-[10px] font-mono-tech px-2.5 py-1 rounded-full bg-neutral-900/90 border border-neutral-800 text-amber-300/90 hover:border-amber-500/40">
+            VOICE: ON
+          </button>
+          <button onclick="toggleVoiceSettings()" class="text-[10px] font-mono-tech px-2.5 py-1 rounded-full bg-neutral-900/90 border border-neutral-800 text-neutral-400 hover:border-amber-500/40">
+            AUDIO TUNE
+          </button>
+        </div>
+      </div>
+
+      <h1 class="text-2xl tracking-[0.4em] font-brand text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 mt-1">
+        DYNAST
+      </h1>
+      <p id="statusText" class="text-[10px] font-mono-tech tracking-[0.25em] text-amber-300/70 mt-1">
+        STATUS: ONLINE • GOOGLE LIVE SYNC
+      </p>
+
+      <!-- Voice Selector Drawer (Hidden by default) -->
+      <div id="voiceDrawer" class="hidden w-full glass-card border border-amber-500/30 rounded-xl p-3 mt-3 text-xs">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-mono-tech uppercase tracking-wider text-amber-400">Select Neural Voice</span>
+          <span id="speedLabel" class="text-[10px] font-mono-tech text-neutral-400">Pace: 1.02x (Human)</span>
+        </div>
+        <select id="voiceSelect" onchange="changeVoice()" class="w-full bg-black border border-neutral-800 rounded-lg px-2.5 py-2 text-xs text-amber-100 outline-none mb-2"></select>
+        <div class="flex items-center gap-3">
+          <span class="text-[10px] text-neutral-400">Speed</span>
+          <input id="rateSlider" type="range" min="0.90" max="1.15" step="0.02" value="1.02" oninput="updateRate(this.value)" class="flex-1 accent-amber-400" />
+        </div>
+      </div>
+
+      <!-- Ecosystem Quick Navigation Pills -->
+      <div class="flex flex-wrap items-center justify-center gap-1.5 mt-3 text-[10px]">
+        <a href="https://dynast.co.in" target="_blank" class="px-2.5 py-1 rounded-full glass-card border border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:text-amber-300 transition">Main Store</a>
+        <a href="https://dynast.co.in/bespoke" target="_blank" class="px-2.5 py-1 rounded-full glass-card border border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:text-amber-300 transition">Bespoke 3D</a>
+        <a href="https://dynast.co.in/admin" target="_blank" class="px-2.5 py-1 rounded-full glass-card border border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:text-amber-300 transition">Admin</a>
+        <a href="https://dynast.co.in/bespoke-admin" target="_blank" class="px-2.5 py-1 rounded-full glass-card border border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:text-amber-300 transition">Bespoke Admin</a>
+        <button onclick="clearHistory()" class="px-2.5 py-1 rounded-full bg-red-950/30 border border-red-900/40 text-red-300 hover:border-red-500/60 transition">Reset Memory</button>
       </div>
     </div>
 
-    <!-- Glowing Futuristic Orb -->
-    <div class="flex flex-col items-center my-4 w-full max-w-lg">
-      <button
-        id="orbBtn"
-        onclick="startListening()"
-        class="w-44 h-44 rounded-full flex items-center justify-center border-2 border-amber-500/50 shadow-[0_0_35px_rgba(245,158,11,0.3)] transition-all duration-500 hover:scale-105"
-      >
-        <div class="w-32 h-32 rounded-full bg-gradient-to-tr from-black via-neutral-900 to-amber-500/20 border border-amber-400/30 flex items-center justify-center">
-          <span id="orbLabel" class="text-xs tracking-[0.25em] text-amber-300">TAP TO SPEAK</span>
-        </div>
-      </button>
+    <!-- CENTER CHRONOGRAPH NEURAL ORB -->
+    <div class="flex flex-col items-center my-3 w-full">
+      <div class="relative flex items-center justify-center">
+        <!-- Outer Horology Bezel Ring -->
+        <div id="outerRing" class="w-52 h-52 rounded-full border border-dashed border-amber-500/25 bezel-outer absolute pointer-events-none"></div>
+        <!-- Inner Chronograph Ring -->
+        <div id="innerRing" class="w-44 h-44 rounded-full border border-amber-400/20 bezel-inner absolute pointer-events-none"></div>
 
-      <p id="transcriptText" class="text-sm text-neutral-400 italic mt-5 text-center max-w-md hidden"></p>
+        <!-- Interactive Core Button -->
+        <button
+          id="orbBtn"
+          onclick="startListening()"
+          class="relative z-10 w-36 h-36 rounded-full flex items-center justify-center border border-amber-500/50 bg-gradient-to-b from-neutral-900 via-black to-neutral-950 shadow-[0_0_45px_rgba(245,158,11,0.25)] transition-all duration-300 active:scale-95 hover:scale-105"
+        >
+          <div class="w-28 h-28 rounded-full bg-gradient-to-tr from-black via-neutral-950 to-amber-500/15 border border-amber-400/30 flex flex-col items-center justify-center px-2">
+            <span id="orbLabel" class="text-[10px] font-mono-tech tracking-[0.22em] text-amber-300">TAP TO SPEAK</span>
+            <span id="latencyBadge" class="text-[9px] font-mono-tech text-neutral-500 mt-1">TURBO READY</span>
+          </div>
+        </button>
+      </div>
 
-      <div class="mt-4 w-full bg-neutral-950 border border-amber-500/20 rounded-xl p-5 text-center">
-        <p id="replyText" class="text-amber-100 leading-relaxed text-sm whitespace-pre-line">
-          Welcome back, Hanzalah. DYNAST neural link is connected to dynast.co.in, your admin panels, Supabase, and GitHub.
+      <!-- User Spoken Transcript -->
+      <p id="transcriptText" class="text-xs text-neutral-400 italic mt-5 text-center max-w-md hidden"></p>
+
+      <!-- AI Response Display Card -->
+      <div class="mt-4 w-full glass-card border border-amber-500/25 rounded-2xl p-5 text-center shadow-[0_10px_40px_rgba(0,0,0,0.8)]">
+        <p id="replyText" class="text-amber-50/95 leading-relaxed text-sm font-normal whitespace-pre-line">
+          Systems online. Google live feed, Supabase, and GitHub repositories are synchronized. How can I assist you?
         </p>
       </div>
 
-      <!-- Staged GitHub Update Confirmation Box -->
-      <div id="confirmBox" class="hidden mt-4 w-full bg-amber-950/20 border border-amber-500/60 rounded-xl p-4 text-center">
-        <p class="text-xs uppercase tracking-widest text-amber-400 font-semibold mb-1">Pending Website Update</p>
+      <!-- Staged GitHub Update Confirmation Card -->
+      <div id="confirmBox" class="hidden mt-3 w-full glass-card border border-amber-400/70 rounded-2xl p-4 text-center shadow-lg">
+        <p class="text-[10px] font-mono-tech uppercase tracking-[0.25em] text-amber-400 font-semibold mb-1">
+          Staged Repository Update
+        </p>
         <p id="confirmDetails" class="text-xs text-neutral-300 mb-3"></p>
         <div class="flex gap-3 justify-center">
           <button
             onclick="executeConfirmedAction()"
-            class="bg-amber-500 text-black font-semibold px-4 py-2 rounded text-xs tracking-wider hover:bg-amber-400"
+            class="bg-amber-500 text-black font-semibold px-4 py-2 rounded-lg text-xs tracking-wider hover:bg-amber-400 transition"
           >
-            CONFIRM & PUSH TO GITHUB
+            CONFIRM & DEPLOY
           </button>
           <button
             onclick="cancelStagedAction()"
-            class="bg-neutral-800 text-neutral-300 px-4 py-2 rounded text-xs hover:bg-neutral-700"
+            class="bg-neutral-800 text-neutral-300 px-4 py-2 rounded-lg text-xs hover:bg-neutral-700 transition"
           >
             CANCEL
           </button>
@@ -89,27 +175,63 @@
       </div>
     </div>
 
-    <!-- Text Command Bar -->
-    <form onsubmit="handleTextSubmit(event)" class="w-full max-w-md flex gap-2 mb-2">
-      <input
-        id="textInput"
-        type="text"
-        placeholder="Ask DYNAST or command a website update..."
-        class="flex-1 bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 text-sm text-white outline-none focus:border-amber-500"
-      />
-      <button type="submit" class="bg-amber-500 text-black font-medium px-5 py-3 rounded-lg text-sm hover:bg-amber-400">
-        Send
-      </button>
-    </form>
+    <!-- Bottom Quick Command Chips & Input Bar -->
+    <div class="w-full flex flex-col gap-2">
+      <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
+        <button onclick="sendCommand('What are the top business and world news headlines right now?')" class="shrink-0 px-3 py-1.5 rounded-full glass-card border border-neutral-800 text-neutral-300 hover:border-amber-500/40">
+          🌐 Live News
+        </button>
+        <button onclick="sendCommand('Check my Supabase database tables and recent orders')" class="shrink-0 px-3 py-1.5 rounded-full glass-card border border-neutral-800 text-neutral-300 hover:border-amber-500/40">
+          ⌚ Check Orders
+        </button>
+        <button onclick="sendCommand('Inspect admin.html and summarize its current controls')" class="shrink-0 px-3 py-1.5 rounded-full glass-card border border-neutral-800 text-neutral-300 hover:border-amber-500/40">
+          🛡️ Audit Admin
+        </button>
+      </div>
+
+      <form onsubmit="handleTextSubmit(event)" class="w-full flex gap-2">
+        <input
+          id="textInput"
+          type="text"
+          placeholder="Ask anything or command a website update..."
+          class="flex-1 glass-card border border-neutral-800 rounded-xl px-4 py-3.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-amber-500/70 transition"
+        />
+        <button
+          type="submit"
+          class="bg-gradient-to-r from-amber-500 to-amber-400 text-black font-semibold px-5 py-3.5 rounded-xl text-xs tracking-wider hover:brightness-110 transition"
+        >
+          SEND
+        </button>
+      </form>
+    </div>
   </div>
 
   <script>
     const FOUNDER_PIN = "060709";
     let chatHistory = JSON.parse(localStorage.getItem("DYNAST_CHAT_MEMORY") || "[]");
     let stagedAction = null;
+    let isMuted = false;
+    let speechRate = parseFloat(localStorage.getItem("DYNAST_VOICE_RATE") || "1.02");
+    let selectedVoiceURI = localStorage.getItem("DYNAST_VOICE_URI") || "";
+
+    // Purge any old habit of ", Hanzalah" stored in browser memory immediately on load
+    chatHistory = chatHistory.map((item) => ({
+      role: item.role,
+      text: String(item.text || "").replace(/,\s*Hanzalah([.!?])/gi, "$1")
+    }));
+    saveHistory();
+
+    // Update live IST clock
+    function updateClock() {
+      const now = new Date();
+      document.getElementById("clockText").textContent =
+        now.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }) + " IST";
+    }
+    setInterval(updateClock, 10000);
+    updateClock();
 
     function saveHistory() {
-      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-12)));
+      localStorage.setItem("DYNAST_CHAT_MEMORY", JSON.stringify(chatHistory.slice(-10)));
     }
 
     function clearHistory() {
@@ -117,7 +239,7 @@
       stagedAction = null;
       localStorage.removeItem("DYNAST_CHAT_MEMORY");
       document.getElementById("confirmBox").classList.add("hidden");
-      document.getElementById("replyText").textContent = "Session memory cleared, Hanzalah.";
+      document.getElementById("replyText").textContent = "Conversation memory reset. Ready for your next command.";
     }
 
     function unlockDynast() {
@@ -128,53 +250,147 @@
       }
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
+      populateVoices();
     }
 
-    function setVisualStatus(state) {
-      document.getElementById("statusText").textContent = "STATUS: " + state + " (HANZALAH)";
+    function toggleMute() {
+      isMuted = !isMuted;
+      if (isMuted && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      const btn = document.getElementById("muteBtn");
+      btn.textContent = isMuted ? "VOICE: MUTED" : "VOICE: ON";
+      btn.className = isMuted
+        ? "text-[10px] font-mono-tech px-2.5 py-1 rounded-full bg-neutral-900 border border-red-900/50 text-red-400"
+        : "text-[10px] font-mono-tech px-2.5 py-1 rounded-full bg-neutral-900/90 border border-neutral-800 text-amber-300/90";
+    }
+
+    function toggleVoiceSettings() {
+      const drawer = document.getElementById("voiceDrawer");
+      drawer.classList.toggle("hidden");
+      populateVoices();
+    }
+
+    function updateRate(val) {
+      speechRate = parseFloat(val);
+      localStorage.setItem("DYNAST_VOICE_RATE", String(speechRate));
+      document.getElementById("speedLabel").textContent = `Pace: ${speechRate.toFixed(2)}x (Human)`;
+    }
+
+    function changeVoice() {
+      const select = document.getElementById("voiceSelect");
+      selectedVoiceURI = select.value;
+      localStorage.setItem("DYNAST_VOICE_URI", selectedVoiceURI);
+      speakOutLoud("Voice profile updated. Standing by.");
+    }
+
+    function populateVoices() {
+      if (!("speechSynthesis" in window)) return;
+      const voices = window.speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
+      const select = document.getElementById("voiceSelect");
+      if (!voices.length || !select) return;
+
+      // Rank natural/neural English voices highest
+      voices.sort((a, b) => {
+        const score = (v) =>
+          (v.name.includes("Natural") || v.name.includes("Online") ? 5 : 0) +
+          (v.name.includes("Google UK English Male") ? 4 : 0) +
+          (v.name.includes("Google US English") ? 3 : 0) +
+          (v.lang === "en-GB" || v.lang === "en-IN" ? 2 : 0);
+        return score(b) - score(a);
+      });
+
+      select.innerHTML = "";
+      voices.forEach((v) => {
+        const opt = document.createElement("option");
+        opt.value = v.voiceURI;
+        opt.textContent = `${v.name} (${v.lang})`;
+        if (selectedVoiceURI && v.voiceURI === selectedVoiceURI) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      document.getElementById("rateSlider").value = speechRate;
+      document.getElementById("speedLabel").textContent = `Pace: ${speechRate.toFixed(2)}x (Human)`;
+    }
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = populateVoices;
+    }
+
+    function setVisualStatus(state, latencyMs = null) {
+      const statusEl = document.getElementById("statusText");
       const orb = document.getElementById("orbBtn");
       const label = document.getElementById("orbLabel");
-      orb.className = "w-44 h-44 rounded-full flex items-center justify-center border-2 transition-all duration-500 ";
+      const badge = document.getElementById("latencyBadge");
+
+      if (latencyMs) {
+        badge.textContent = `${(latencyMs / 1000).toFixed(1)}s RESPONSE`;
+      }
+
+      statusEl.textContent = `STATUS: ${state} • GOOGLE LIVE SYNC`;
+      orb.className = "relative z-10 w-36 h-36 rounded-full flex items-center justify-center border transition-all duration-300 ";
 
       if (state === "LISTENING") {
-        orb.className += "border-amber-300 shadow-[0_0_75px_rgba(251,191,36,0.9)] scale-110";
+        orb.className += "border-amber-300 bg-amber-950/30 shadow-[0_0_80px_rgba(251,191,36,0.85)] scale-110";
         label.textContent = "LISTENING";
       } else if (state === "SPEAKING") {
-        orb.className += "border-amber-400 shadow-[0_0_65px_rgba(245,158,11,0.8)] animate-pulse";
+        orb.className += "border-amber-400 bg-neutral-950 shadow-[0_0_70px_rgba(245,158,11,0.75)] scale-105";
         label.textContent = "SPEAKING";
       } else if (state === "THINKING") {
-        orb.className += "border-amber-600 shadow-[0_0_45px_rgba(217,119,6,0.5)] animate-pulse";
-        label.textContent = "THINKING";
+        orb.className += "border-amber-500/80 bg-neutral-950 shadow-[0_0_55px_rgba(217,119,6,0.6)] animate-pulse";
+        label.textContent = "PROCESSING";
       } else {
-        orb.className += "border-amber-500/50 shadow-[0_0_35px_rgba(245,158,11,0.3)] hover:scale-105";
+        orb.className += "border-amber-500/50 bg-gradient-to-b from-neutral-900 via-black to-neutral-950 shadow-[0_0_45px_rgba(245,158,11,0.25)] hover:scale-105";
         label.textContent = "TAP TO SPEAK";
       }
     }
 
-    function speakOutLoud(text) {
-      if (!("speechSynthesis" in window)) {
+    // Natural Human Speech Engine with Sentence Streaming & Native Pitch (1.0)
+    function speakOutLoud(rawText) {
+      if (isMuted || !("speechSynthesis" in window)) {
         setVisualStatus("ONLINE");
         return;
       }
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      const voices = window.speechSynthesis.getVoices();
-      const preferred =
-        voices.find((v) => v.name.includes("Google UK English Male")) ||
-        voices.find((v) => v.name.includes("Natural") || v.name.includes("Enhanced")) ||
-        voices.find((v) => v.lang.startsWith("en-GB")) ||
-        voices.find((v) => v.lang.startsWith("en"));
-      if (preferred) utterance.voice = preferred;
-      utterance.rate = 0.96;
-      utterance.pitch = 0.90;
-      utterance.onstart = () => setVisualStatus("SPEAKING");
-      utterance.onend = () => setVisualStatus("ONLINE");
-      utterance.onerror = () => setVisualStatus("ONLINE");
-      window.speechSynthesis.speak(utterance);
-    }
 
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+      window.speechSynthesis.cancel();
+
+      // Strip markdown characters or code blocks so speech sounds 100% human
+      const cleanText = String(rawText)
+        .replace(/[*#_`~>]/g, "")
+        .replace(/https?:\/\/\S+/g, "link")
+        .trim();
+
+      if (!cleanText) {
+        setVisualStatus("ONLINE");
+        return;
+      }
+
+      const voices = window.speechSynthesis.getVoices();
+      const chosenVoice =
+        voices.find((v) => v.voiceURI === selectedVoiceURI) ||
+        voices.find((v) => v.name.includes("Natural") && v.lang.startsWith("en")) ||
+        voices.find((v) => v.name.includes("Google UK English Male")) ||
+        voices.find((v) => v.name.includes("Google US English")) ||
+        voices.find((v) => v.lang === "en-GB" || v.lang === "en-IN") ||
+        voices.find((v) => v.lang.startsWith("en"));
+
+      // Split into natural sentence chunks for fluid pacing and zero mobile cutoff
+      const sentences = cleanText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanText];
+
+      sentences.forEach((sentence, idx) => {
+        const utter = new SpeechSynthesisUtterance(sentence.trim());
+        if (chosenVoice) utter.voice = chosenVoice;
+        // Native pitch (1.0) and human conversational pace (1.02) avoid robotic pitch-shift artifacts
+        utter.pitch = 1.0;
+        utter.rate = speechRate;
+
+        if (idx === 0) utter.onstart = () => setVisualStatus("SPEAKING");
+        if (idx === sentences.length - 1) {
+          utter.onend = () => setVisualStatus("ONLINE");
+          utter.onerror = () => setVisualStatus("ONLINE");
+        }
+        window.speechSynthesis.speak(utter);
+      });
     }
 
     async function executeConfirmedAction() {
@@ -210,7 +426,7 @@
     function cancelStagedAction() {
       stagedAction = null;
       document.getElementById("confirmBox").classList.add("hidden");
-      const msg = "Staged website update cancelled, Hanzalah.";
+      const msg = "Staged repository update cancelled.";
       document.getElementById("replyText").textContent = msg;
       speakOutLoud(msg);
     }
@@ -219,18 +435,20 @@
       if (!commandText.trim()) return;
 
       const lower = commandText.trim().toLowerCase();
-      if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "yes confirm" || lower === "push it")) {
+      if (stagedAction && (lower === "confirm" || lower === "confirm update" || lower === "yes confirm" || lower === "deploy")) {
         await executeConfirmedAction();
         return;
       }
 
+      const startTime = performance.now();
       setVisualStatus("THINKING");
+
       const transcriptEl = document.getElementById("transcriptText");
       transcriptEl.textContent = "“" + commandText + "”";
       transcriptEl.classList.remove("hidden");
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
 
       try {
         const res = await fetch("/api/dynast", {
@@ -238,12 +456,14 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: commandText,
-            chatHistory: chatHistory
+            chatHistory: chatHistory,
+            fastMode: true
           }),
           signal: controller.signal
         });
         clearTimeout(timeoutId);
 
+        const elapsed = performance.now() - startTime;
         const rawText = await res.text();
         let data;
         try {
@@ -264,7 +484,7 @@
         if (data.pendingAction) {
           stagedAction = data.pendingAction;
           document.getElementById("confirmDetails").textContent =
-            `File: ${stagedAction.filePath} — ${stagedAction.summaryOfChanges}`;
+            `${stagedAction.filePath} — ${stagedAction.summaryOfChanges}`;
           document.getElementById("confirmBox").classList.remove("hidden");
         }
 
@@ -272,6 +492,7 @@
         chatHistory.push({ role: "DYNAST", text: data.reply });
         saveHistory();
 
+        setVisualStatus("ONLINE", elapsed);
         document.getElementById("replyText").textContent = data.reply;
         speakOutLoud(data.reply);
       } catch (err) {
@@ -279,7 +500,7 @@
         setVisualStatus("ONLINE");
         document.getElementById("replyText").textContent =
           err.name === "AbortError"
-            ? "Server took longer than 30 seconds to respond. Please tap Send again."
+            ? "Request timed out. Please tap Send again."
             : "Connection Error: " + err.message;
       }
     }
@@ -298,6 +519,7 @@
         alert("Please use Google Chrome for voice commands.");
         return;
       }
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       const recognition = new SpeechRecognition();
       recognition.lang = "en-IN";
       recognition.onstart = () => setVisualStatus("LISTENING");
