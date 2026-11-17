@@ -5,13 +5,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const {
-    prompt = "",
-    chatHistory = [],
-    confirmAction = null,
-    ttsOnly = false,
-    ttsText = ""
-  } = req.body || {};
+  const { prompt = "", chatHistory = [], confirmAction = null } = req.body || {};
 
   const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
   const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || "").trim();
@@ -40,75 +34,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // NATIVE GEMINI LIVE "ORION" (API ID: "Orus") 24kHz PCM VOICE SYNTHESIZER
-  async function generateGeminiOrionVoice(rawSpeech) {
-    const cleanSpeech = String(rawSpeech || "")
-      .replace(/[*#_`~>]/g, "")
-      .replace(/\bDYNAST\b/gi, "Dynast")
-      .replace(/https?:\/\/\S+/g, "")
-      .trim()
-      .slice(0, 550);
-
-    if (!cleanSpeech) return null;
-
-    // "Orus" is the official Gemini API voice ID for the deep Orion voice pack in Gemini Live
-    const voiceCandidates = ["Orus", "Charon", "Puck"];
-
-    for (const voiceName of voiceCandidates) {
-      try {
-        const ttsRes = await fetchFast(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": GEMINI_API_KEY
-            },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: cleanSpeech }] }],
-              generationConfig: {
-                responseModalities: ["AUDIO"],
-                speechConfig: {
-                  voiceConfig: {
-                    prebuiltVoiceConfig: {
-                      voiceName: voiceName
-                    }
-                  }
-                }
-              }
-            })
-          },
-          5200
-        );
-
-        if (ttsRes.ok) {
-          const ttsData = await ttsRes.json();
-          const audioPart = ttsData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-          if (audioPart) {
-            return {
-              audioBase64: audioPart.inlineData.data,
-              mimeType: audioPart.inlineData.mimeType || "audio/L16;rate=24000",
-              voiceUsed: voiceName
-            };
-          }
-        }
-      } catch (e) {}
-    }
-
-    return null;
-  }
-
-  // 1. DEDICATED ORION VOICE ENDPOINT (For greetings or instant retry)
-  if (ttsOnly && ttsText) {
-    const audioResult = await generateGeminiOrionVoice(ttsText);
-    return res.status(200).json({
-      audioBase64: audioResult?.audioBase64 || null,
-      mimeType: audioResult?.mimeType || "audio/L16;rate=24000",
-      voiceUsed: audioResult?.voiceUsed || "Orus"
-    });
-  }
-
-  // 2. EXECUTE CONFIRMED GITHUB UPDATE
+  // 1. EXECUTE CONFIRMED GITHUB UPDATE
   if (confirmAction && confirmAction.type === "github_update") {
     try {
       if (!GITHUB_TOKEN) {
@@ -148,20 +74,15 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: `GitHub Push Failed: ${errText}` });
       }
 
-      const replyMsg = `Done. The update to ${cleanPath} is now live on GitHub and deploying to dynast.co.in.`;
-      const audioResult = await generateGeminiOrionVoice(replyMsg);
-
       return res.status(200).json({
-        reply: replyMsg,
-        audioBase64: audioResult?.audioBase64 || null,
-        mimeType: audioResult?.mimeType || "audio/L16;rate=24000"
+        reply: `Done. The update to ${cleanPath} is now live on GitHub and deploying to dynast.co.in.`
       });
     } catch (err) {
       return res.status(500).json({ error: "GitHub Update Error: " + err.message });
     }
   }
 
-  // 3. FAST CONDITIONAL CONTEXT LOADING
+  // 2. FAST CONDITIONAL CONTEXT LOADING
   const lowerPrompt = String(prompt).toLowerCase();
   const needsDatabase = /(order|stock|inventory|database|table|supabase|sale|customer|log|revenue|analytics)/.test(lowerPrompt);
   const needsGoogleLive = /(news|today|latest|weather|price|market|bitcoin|gold|sensex|nifty|score|happening|world|current|search|google|trend|2026|who won)/.test(lowerPrompt);
@@ -273,12 +194,12 @@ ${fileCode ? `\nSOURCE CODE OF ${targetFile}:\n${fileCode.slice(0, 28000)}` : ""
 VOCAL CONVERSATION RULES:
 1. Speak like a natural, articulate human in real-time voice chat using smooth rhythm and contractions ("I'm", "we've", "it's").
 2. Do NOT repeat the founder's name ("Hanzalah") at the end of sentences or in normal replies—only say his name if he explicitly asks who he is.
-3. Keep spoken answers concise and punchy (1 to 2 sentences) so your Orion voice stream synthesizes near-instantaneously, with zero markdown symbols (* or #).
+3. Keep spoken answers concise and punchy (1 to 2 sentences) with zero markdown symbols (* or #).
 4. If asked to edit or update a website file, include the complete updated code at the very end wrapped in <GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"...","commitMessage":"...","newContent":"..."}</GITHUB_UPDATE>.`;
 
   const contents = [];
   for (const h of chatHistory.slice(-6)) {
-    if (h && h.text && !String(h.text).includes("Error") && !String(h.text).includes("timed out")) {
+    if (h && h.text && !String(h.text).includes("Error") && !String(h.text).includes("quota")) {
       const cleanedHistoryText = String(h.text)
         .replace(/,\s*Hanzalah([.!?])/gi, "$1")
         .replace(/\bHanzalah,\s*/gi, "");
@@ -290,95 +211,68 @@ VOCAL CONVERSATION RULES:
   }
   contents.push({ role: "user", parts: [{ text: String(prompt) }] });
 
-  const models = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-pro-preview"];
-  let lastError = "";
+  // STRICTLY GEMINI 3.5 FLASH ONLY
+  const modelId = "gemini-3.5-flash-lite";
 
-  async function callModel(modelId, useGoogleSearchTool) {
+  try {
     const payload = {
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: contents,
-      generationConfig: {
-        temperature: 0.55,
-        maxOutputTokens: targetFile ? 4096 : 160
-      }
+      generationConfig: { temperature: 0.55, maxOutputTokens: 180 }
     };
-
-    if (useGoogleSearchTool && !targetFile) {
+    if (needsGoogleLive && !targetFile) {
       payload.tools = [{ googleSearch: {} }];
     }
 
-    return await fetchFast(
+    const response = await fetchFast(
       `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": GEMINI_API_KEY
-        },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
         body: JSON.stringify(payload)
       },
-      3500
+      4000
     );
-  }
 
-  for (const model of models) {
-    try {
-      let response = await callModel(model, needsGoogleLive);
-      if (!response.ok && needsGoogleLive) {
-        response = await callModel(model, false);
-      }
+    const data = await response.json();
+    if (!response.ok || !data?.candidates?.[0]?.content?.parts) {
+      return res.status(500).json({ error: data?.error?.message || "Gemini 3.5 Flash generation failed." });
+    }
 
-      const data = await response.json();
-      if (response.ok && data?.candidates?.[0]?.content?.parts) {
-        const parts = data.candidates[0].content.parts;
-        const textParts = parts.filter((p) => p.text && !p.thought).map((p) => p.text);
-        let allText = (textParts.length ? textParts : parts.map((p) => p.text || "")).join(" ").trim();
+    const parts = data.candidates[0].content.parts;
+    const textParts = parts.filter((p) => p.text && !p.thought).map((p) => p.text);
+    let replyText = (textParts.length ? textParts : parts.map((p) => p.text || "")).join(" ").trim();
 
-        const updateMatch = allText.match(/<GITHUB_UPDATE>([\s\S]*?)<\/GITHUB_UPDATE>/);
-        if (updateMatch) {
-          try {
-            const parsed = JSON.parse(updateMatch[1].trim());
-            const cleanReply =
-              allText
-                .replace(/<GITHUB_UPDATE>[\s\S]*?<\/GITHUB_UPDATE>/, "")
-                .replace(/,\s*Hanzalah([.!?])/gi, "$1")
-                .trim() || `I've prepared the update for ${parsed.filePath}. Tap Deploy below to push it live.`;
-
-            const audioResult = await generateGeminiOrionVoice(cleanReply);
-            return res.status(200).json({
-              reply: cleanReply,
-              audioBase64: audioResult?.audioBase64 || null,
-              mimeType: audioResult?.mimeType || "audio/L16;rate=24000",
-              pendingAction: {
-                type: "github_update",
-                filePath: parsed.filePath,
-                summaryOfChanges: parsed.summaryOfChanges || "Website update",
-                commitMessage: parsed.commitMessage || `Update ${parsed.filePath}`,
-                newContent: parsed.newContent
-              }
-            });
-          } catch (e) {}
-        }
-
-        allText = allText.replace(/,\s*Hanzalah([.!?])$/i, "$1").trim() || "I'm right here and ready.";
-
-        // Synthesize Gemini Live Orion ("Orus") audio in the same turn so voice & text arrive together
-        const audioResult = await generateGeminiOrionVoice(allText);
+    const updateMatch = replyText.match(/<GITHUB_UPDATE>([\s\S]*?)<\/GITHUB_UPDATE>/);
+    if (updateMatch) {
+      try {
+        const parsed = JSON.parse(updateMatch[1].trim());
+        const cleanReply =
+          replyText
+            .replace(/<GITHUB_UPDATE>[\s\S]*?<\/GITHUB_UPDATE>/, "")
+            .replace(/,\s*Hanzalah([.!?])/gi, "$1")
+            .trim() || `I've prepared the update for ${parsed.filePath}. Tap Deploy below to push it live.`;
 
         return res.status(200).json({
-          reply: allText,
-          audioBase64: audioResult?.audioBase64 || null,
-          mimeType: audioResult?.mimeType || "audio/L16;rate=24000",
-          voiceUsed: audioResult?.voiceUsed || "Orus",
-          modelUsed: model
+          reply: cleanReply,
+          pendingAction: {
+            type: "github_update",
+            filePath: parsed.filePath,
+            summaryOfChanges: parsed.summaryOfChanges || "Website update",
+            commitMessage: parsed.commitMessage || `Update ${parsed.filePath}`,
+            newContent: parsed.newContent
+          }
         });
-      }
-
-      lastError = data?.error?.message || JSON.stringify(data);
-    } catch (err) {
-      lastError = err.name === "AbortError" ? `${model} timed out` : err.message;
+      } catch (e) {}
     }
-  }
 
-  return res.status(500).json({ error: `Gemini API Error: ${lastError}` });
+    replyText = replyText.replace(/,\s*Hanzalah([.!?])$/i, "$1").trim() || "I'm online and ready.";
+
+    return res.status(200).json({
+      reply: replyText,
+      modelUsed: modelId
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Gemini 3.5 Flash Error: " + err.message });
+  }
 }
