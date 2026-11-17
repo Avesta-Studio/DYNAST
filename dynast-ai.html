@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>DYNAST — Live AI</title>
+  <title>DYNAST — Live AI (Orion Voice)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -64,7 +64,7 @@
     </div>
 
     <h1 class="text-2xl tracking-[0.4em] font-brand text-amber-300 mb-1">DYNAST</h1>
-    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">NEURAL VOICE INTERFACE</p>
+    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">ORION NEURAL VOICE INTERFACE</p>
 
     <div class="w-full glass-panel rounded-3xl p-6 shadow-2xl">
       <input
@@ -81,7 +81,7 @@
         onclick="unlockDynast()"
         class="bg-gradient-to-r from-amber-500 via-amber-300 to-amber-500 text-black font-semibold text-xs py-3.5 rounded-2xl tracking-[0.22em] hover:brightness-110 active:scale-[0.98] transition w-full shadow-[0_0_25px_rgba(245,158,11,0.3)]"
       >
-        INITIALIZE LIVE AI
+        INITIALIZE ORION AI
       </button>
     </div>
   </div>
@@ -101,42 +101,18 @@
 
         <div class="flex items-center gap-1.5">
           <button
-            onclick="toggleDrawer('voiceDrawer')"
-            class="glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300 hover:border-amber-400/50 transition"
+            onclick="testOrionVoice()"
+            class="glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300 border border-amber-400/40 hover:border-amber-400 transition"
           >
-            VOICE PACK
+            VOICE: ORION
           </button>
           <button
-            onclick="toggleDrawer('hubPanel')"
+            onclick="toggleHub()"
             class="glass-pill px-2.5 py-1.5 rounded-full text-[10px] font-mono-tech text-neutral-300 hover:border-white/30 transition"
           >
             HUB
           </button>
         </div>
-      </div>
-
-      <!-- Gemini Male Voice Pack & Engine Selector Drawer -->
-      <div id="voiceDrawer" class="hidden w-full glass-panel rounded-2xl p-3.5 mt-2.5 shadow-2xl">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-[10px] font-mono-tech uppercase tracking-widest text-amber-300">Gemini Male Voice Pack</span>
-          <button onclick="toggleMute()" id="muteBtn" class="text-[10px] font-mono-tech text-emerald-400">SPEAKER: ON</button>
-        </div>
-
-        <!-- 4 Gemini Vocal Tuning Presets -->
-        <div class="grid grid-cols-4 gap-1.5 mb-2.5">
-          <button onclick="applyGeminiPreset('Orion', 0.88, 1.02)" id="preset-Orion" class="py-1.5 rounded-xl text-[11px] font-medium border border-amber-400/60 bg-amber-500/20 text-amber-200">Orion</button>
-          <button onclick="applyGeminiPreset('Puck', 0.96, 1.04)" id="preset-Puck" class="py-1.5 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Puck</button>
-          <button onclick="applyGeminiPreset('Charon', 0.82, 0.98)" id="preset-Charon" class="py-1.5 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Charon</button>
-          <button onclick="applyGeminiPreset('Fenrir', 0.92, 1.06)" id="preset-Fenrir" class="py-1.5 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400">Fenrir</button>
-        </div>
-
-        <!-- Direct System Voice Engine Picker -->
-        <label class="block text-[10px] font-mono-tech text-neutral-400 mb-1">Installed Google Voice Engine:</label>
-        <select
-          id="voiceEngineSelect"
-          onchange="selectSpecificEngine(this.value)"
-          class="w-full bg-black/80 border border-white/15 rounded-xl px-3 py-2 text-xs text-amber-100 outline-none"
-        ></select>
       </div>
 
       <!-- Collapsible Ecosystem Hub Drawer -->
@@ -145,6 +121,7 @@
         <a href="https://dynast.co.in/bespoke" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-neutral-200 hover:border-amber-400/50">Bespoke Studio</a>
         <a href="https://dynast.co.in/admin" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-neutral-200 hover:border-amber-400/50">Admin</a>
         <a href="https://dynast.co.in/bespoke-admin" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-neutral-200 hover:border-amber-400/50">Bespoke Admin</a>
+        <button onclick="toggleMute()" id="muteBtn" class="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">Speaker: ON</button>
         <button onclick="clearHistory()" class="px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">Clear Memory</button>
       </div>
     </div>
@@ -155,7 +132,7 @@
         <canvas id="orbCanvas" width="320" height="320" class="w-[260px] h-[260px] sm:w-[290px] sm:h-[290px]"></canvas>
         <div class="absolute pointer-events-none flex flex-col items-center justify-center">
           <span id="orbCenterLabel" class="text-[10px] font-mono-tech tracking-[0.28em] text-amber-200/80 uppercase">Tap to Speak</span>
-          <span id="latencyLabel" class="text-[9px] font-mono-tech text-neutral-400 mt-1 opacity-75">ORION MALE VOICE</span>
+          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/80 mt-1">ORION VOICE LOCKED</span>
         </div>
       </div>
 
@@ -163,7 +140,7 @@
 
       <div class="w-full max-w-md px-3 text-center float-anim">
         <p id="replyText" class="text-base sm:text-lg font-light text-amber-50/95 leading-relaxed tracking-wide max-h-40 overflow-y-auto px-2">
-          I'm online and listening. Tap the core or enable Hands-Free Live to talk naturally.
+          Orion voice pack is locked and online. Tap the core or enable Hands-Free Live to talk naturally.
         </p>
       </div>
 
@@ -236,25 +213,31 @@
 
   <script>
     const FOUNDER_PIN = "060709";
+
+    // HARD-LOCKED ORION VOCAL PARAMETERS (Deep, Resonant Conversational Male)
+    const ORION_PITCH = 0.86;
+    const ORION_RATE = 1.02;
+    const ORION_VOLUME = 1.0;
+
+    // Purge any old voice overrides from localStorage so Orion is strictly enforced
+    localStorage.removeItem("DYNAST_VOICE_URI");
+    localStorage.removeItem("DYNAST_ENGINE_URI");
+    localStorage.removeItem("DYNAST_VOICE_PITCH");
+    localStorage.removeItem("DYNAST_VOICE_RATE");
+    localStorage.setItem("DYNAST_PRESET_NAME", "Orion");
+
     let chatHistory = JSON.parse(localStorage.getItem("DYNAST_CHAT_MEMORY") || "[]");
     let stagedAction = null;
     let isMuted = false;
     let continuousLiveMode = false;
     let currentState = "ONLINE"; // ONLINE | LISTENING | THINKING | SPEAKING
 
-    // Saved Voice Pack Settings (Defaults to Gemini Orion Deep Male Tuning)
-    let currentPresetName = localStorage.getItem("DYNAST_PRESET_NAME") || "Orion";
-    let voicePitch = parseFloat(localStorage.getItem("DYNAST_VOICE_PITCH") || "0.88");
-    let voiceRate = parseFloat(localStorage.getItem("DYNAST_VOICE_RATE") || "1.02");
-    let savedVoiceURI = localStorage.getItem("DYNAST_ENGINE_URI") || "";
-    let selectedVoiceObj = null;
-
+    let orionVoiceObj = null;
     let activeFetchController = null;
     let activeRecognition = null;
     let textAnimInterval = null;
     let speechPulseEnergy = 0;
 
-    // Clean any old ", Hanzalah" or "can't hear" artifacts from saved memory
     chatHistory = chatHistory
       .filter((item) => !String(item.text || "").toLowerCase().includes("audio channel"))
       .map((item) => ({
@@ -263,104 +246,54 @@
       }));
     saveHistory();
 
-    // Discover & rank best English Male voices on Android / Desktop
-    function populateVoiceEngines() {
-      if (!("speechSynthesis" in window)) return;
+    // Strictly locks onto the deepest natural English Male voice for the Orion profile
+    function resolveOrionVoice() {
+      if (!("speechSynthesis" in window)) return null;
       const allVoices = window.speechSynthesis.getVoices();
-      if (!allVoices.length) return;
+      if (!allVoices.length) return null;
 
-      // Match both hyphen (en-US) and Android underscore (en_US) formats
-      const enVoices = allVoices.filter((v) => /^en[-_]/i.test(v.lang || "") || (v.lang || "").toLowerCase().startsWith("en"));
-      const list = enVoices.length ? enVoices : allVoices;
+      const enVoices = allVoices.filter(
+        (v) => /^en[-_]/i.test(v.lang || "") || (v.lang || "").toLowerCase().startsWith("en")
+      );
+      const pool = enVoices.length ? enVoices : allVoices;
 
       const isFemale = (v) => {
         const id = (v.name + " " + v.voiceURI).toLowerCase();
-        return /(female|sfg|iob|tpc|tpf|samantha|victoria|karen|moira|tessa|veena|zira|hazel|aria|jenny)/.test(id);
+        return /(female|sfg|iob|tpc|tpf|samantha|victoria|karen|moira|tessa|veena|zira|hazel|aria|jenny|sonia|natasha)/.test(id);
       };
 
-      // Rank Google UK / US Male & Natural engines highest
-      list.sort((a, b) => {
+      const candidates = pool.filter((v) => !isFemale(v));
+      const finalPool = candidates.length ? candidates : pool;
+
+      finalPool.sort((a, b) => {
         const score = (v) => {
           const id = (v.name + " " + v.voiceURI + " " + v.lang).toLowerCase();
           let s = 0;
-          if (!isFemale(v)) s += 40;
-          if (/(male|iom|tpd|rjs|end|guy|daniel|david|brian|andrew|arthur)/.test(id)) s += 50;
-          if (id.includes("en_gb") || id.includes("en-gb") || id.includes("united kingdom") || id.includes("uk")) s += 30;
-          if (id.includes("en_us") || id.includes("en-us") || id.includes("united states") || id.includes("us")) s += 25;
-          if (id.includes("google") || id.includes("natural") || id.includes("network")) s += 15;
+          if (/(male|iom|tpd|rjs|end|guy|daniel|david|brian|andrew|arthur|matthew|christopher)/.test(id)) s += 60;
+          if (id.includes("google uk english male") || id.includes("iom") || id.includes("rjs")) s += 45;
+          if (id.includes("en_us") || id.includes("en-us") || id.includes("en_gb") || id.includes("en-gb")) s += 30;
+          if (id.includes("google") || id.includes("natural") || id.includes("network")) s += 20;
           return s;
         };
         return score(b) - score(a);
       });
 
-      const select = document.getElementById("voiceEngineSelect");
-      if (select) {
-        select.innerHTML = "";
-        list.forEach((v) => {
-          const opt = document.createElement("option");
-          opt.value = v.voiceURI;
-          opt.textContent = `${v.name} (${v.lang})`;
-          select.appendChild(opt);
-        });
-      }
-
-      if (savedVoiceURI) {
-        selectedVoiceObj = list.find((v) => v.voiceURI === savedVoiceURI) || list[0];
-      } else {
-        selectedVoiceObj = list[0];
-      }
-
-      if (select && selectedVoiceObj) {
-        select.value = selectedVoiceObj.voiceURI;
-      }
-
-      highlightPresetButton(currentPresetName);
+      orionVoiceObj = finalPool[0];
+      return orionVoiceObj;
     }
 
     if ("speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = populateVoiceEngines;
-      populateVoiceEngines();
+      window.speechSynthesis.onvoiceschanged = resolveOrionVoice;
+      resolveOrionVoice();
     }
 
-    function highlightPresetButton(name) {
-      ["Orion", "Puck", "Charon", "Fenrir"].forEach((p) => {
-        const btn = document.getElementById("preset-" + p);
-        if (!btn) return;
-        if (p === name) {
-          btn.className = "py-1.5 rounded-xl text-[11px] font-medium border border-amber-400/60 bg-amber-500/20 text-amber-200";
-        } else {
-          btn.className = "py-1.5 rounded-xl text-[11px] font-medium border border-white/10 bg-black/40 text-neutral-400";
-        }
-      });
-      document.getElementById("latencyLabel").textContent = `${name.toUpperCase()} MALE VOICE`;
+    function testOrionVoice() {
+      resolveOrionVoice();
+      speakOrion("Orion voice pack is locked and active.");
     }
 
-    function applyGeminiPreset(name, pitch, rate) {
-      currentPresetName = name;
-      voicePitch = pitch;
-      voiceRate = rate;
-      localStorage.setItem("DYNAST_PRESET_NAME", name);
-      localStorage.setItem("DYNAST_VOICE_PITCH", String(pitch));
-      localStorage.setItem("DYNAST_VOICE_RATE", String(rate));
-      highlightPresetButton(name);
-      document.getElementById("voiceDrawer").classList.add("hidden");
-      speakNow(`Voice pack locked to ${name}. Ready when you are.`);
-    }
-
-    function selectSpecificEngine(uri) {
-      savedVoiceURI = uri;
-      localStorage.setItem("DYNAST_ENGINE_URI", uri);
-      const voices = window.speechSynthesis.getVoices();
-      selectedVoiceObj = voices.find((v) => v.voiceURI === uri) || selectedVoiceObj;
-      speakNow("Voice engine updated and locked.");
-    }
-
-    function toggleDrawer(id) {
-      const other = id === "voiceDrawer" ? "hubPanel" : "voiceDrawer";
-      document.getElementById(other).classList.add("hidden");
-      const target = document.getElementById(id);
-      target.classList.toggle("hidden");
-      if (id === "voiceDrawer") populateVoiceEngines();
+    function toggleHub() {
+      document.getElementById("hubPanel").classList.toggle("hidden");
     }
 
     function unlockDynast() {
@@ -369,13 +302,13 @@
         document.getElementById("pinError").classList.remove("hidden");
         return;
       }
-      populateVoiceEngines();
+      resolveOrionVoice();
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
       startOrbAnimation();
 
-      // Unlock Android Chrome SpeechSynthesis immediately on button tap gesture
-      speakNow("I'm online and ready.");
+      // Immediate Orion voice greeting on unlock tap gesture
+      speakOrion("Orion voice pack online. Ready when you are.");
     }
 
     function toggleContinuousLive() {
@@ -396,10 +329,10 @@
       isMuted = !isMuted;
       stopSpeaking();
       const btn = document.getElementById("muteBtn");
-      btn.textContent = isMuted ? "SPEAKER: MUTED" : "SPEAKER: ON";
+      btn.textContent = isMuted ? "Speaker: MUTED" : "Speaker: ON";
       btn.className = isMuted
-        ? "text-[10px] font-mono-tech text-rose-400"
-        : "text-[10px] font-mono-tech text-emerald-400";
+        ? "px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300"
+        : "px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300";
     }
 
     function stopListening() {
@@ -429,7 +362,7 @@
       document.getElementById("hubPanel").classList.add("hidden");
       const msg = "Memory cleared. What would you like to focus on next?";
       animateReplyText(msg);
-      speakNow(msg);
+      speakOrion(msg);
     }
 
     function setVisualStatus(state, latencyMs = null) {
@@ -440,7 +373,7 @@
       const latencyLabel = document.getElementById("latencyLabel");
 
       if (latencyMs) {
-        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • ${currentPresetName.toUpperCase()}`;
+        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • ORION VOICE`;
       }
 
       if (state === "LISTENING") {
@@ -452,7 +385,7 @@
         statusDot.className = "w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_12px_#c084fc] animate-pulse";
         centerLabel.textContent = "Thinking...";
       } else if (state === "SPEAKING") {
-        statusText.textContent = "SPEAKING LIVE";
+        statusText.textContent = "ORION SPEAKING";
         statusDot.className = "w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_12px_#fbbf24] animate-pulse";
         centerLabel.textContent = "Tap to Interrupt";
       } else {
@@ -479,11 +412,11 @@
         }
         el.textContent += (i === 0 ? "" : " ") + words[i];
         i++;
-      }, 25);
+      }, 24);
     }
 
-    // GUARANTEED ZERO-DELAY, FULL-VOLUME SPEECH ENGINE
-    function speakNow(rawText, elapsedMs = null) {
+    // HARD-LOCKED ORION MALE VOICE ENGINE
+    function speakOrion(rawText, elapsedMs = null) {
       if (isMuted || !("speechSynthesis" in window)) {
         setVisualStatus("ONLINE", elapsedMs);
         return;
@@ -504,24 +437,27 @@
         return;
       }
 
-      if (!selectedVoiceObj) populateVoiceEngines();
-
+      const voice = orionVoiceObj || resolveOrionVoice();
       const sentences = cleanSpeech.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleanSpeech];
       setVisualStatus("SPEAKING", elapsedMs);
-      speechPulseEnergy = 0.65;
+      speechPulseEnergy = 0.68;
 
       sentences.forEach((sentence, idx) => {
         const utter = new SpeechSynthesisUtterance(sentence.trim());
-        if (selectedVoiceObj) {
-          utter.voice = selectedVoiceObj;
+        if (voice) {
+          utter.voice = voice;
+          utter.lang = voice.lang || "en-US";
+        } else {
+          utter.lang = "en-US";
         }
-        utter.volume = 1.0; // 100% Maximum Loudspeaker Volume
-        utter.pitch = voicePitch;
-        utter.rate = voiceRate;
+
+        utter.volume = ORION_VOLUME;
+        utter.pitch = ORION_PITCH;
+        utter.rate = ORION_RATE;
 
         utter.onstart = () => {
           currentState = "SPEAKING";
-          speechPulseEnergy = 0.7;
+          speechPulseEnergy = 0.72;
         };
 
         utter.onboundary = () => {
@@ -571,7 +507,7 @@
         chatHistory.push({ role: "DYNAST", text: data.reply });
         saveHistory();
         animateReplyText(data.reply);
-        speakNow(data.reply, elapsed);
+        speakOrion(data.reply, elapsed);
       } catch (err) {
         setVisualStatus("ONLINE");
         animateReplyText("Network Error: " + err.message);
@@ -583,7 +519,7 @@
       document.getElementById("confirmBox").classList.add("hidden");
       const msg = "Update cancelled.";
       animateReplyText(msg);
-      speakNow(msg);
+      speakOrion(msg);
     }
 
     async function sendCommand(commandText) {
@@ -644,7 +580,7 @@
         saveHistory();
 
         animateReplyText(data.reply);
-        speakNow(data.reply, elapsed);
+        speakOrion(data.reply, elapsed);
       } catch (err) {
         if (err.name === "AbortError") return;
         setVisualStatus("ONLINE");
