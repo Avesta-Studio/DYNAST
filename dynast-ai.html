@@ -64,7 +64,7 @@
     </div>
 
     <h1 class="text-2xl tracking-[0.4em] font-brand text-amber-300 mb-1">DYNAST</h1>
-    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">GEMINI ORION VOICE CHAT</p>
+    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">ORION VOICE CHAT</p>
 
     <div class="w-full glass-panel rounded-3xl p-6 shadow-2xl">
       <input
@@ -132,7 +132,7 @@
         <canvas id="orbCanvas" width="320" height="320" class="w-[260px] h-[260px] sm:w-[290px] sm:h-[290px]"></canvas>
         <div class="absolute pointer-events-none flex flex-col items-center justify-center">
           <span id="orbCenterLabel" class="text-[10px] font-mono-tech tracking-[0.28em] text-amber-200/80 uppercase">Tap to Speak</span>
-          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/80 mt-1">GEMINI ORION</span>
+          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/80 mt-1">ORION VOICE ACTIVE</span>
         </div>
       </div>
 
@@ -140,7 +140,7 @@
 
       <div class="w-full max-w-md px-3 text-center float-anim">
         <p id="replyText" class="text-base sm:text-lg font-light text-amber-50/95 leading-relaxed tracking-wide max-h-40 overflow-y-auto px-2">
-          Gemini Orion neural voice is locked. Tap the core or enable Hands-Free Live to talk naturally.
+          Orion voice is online at full volume. Tap the core or enable Hands-Free Live to talk naturally.
         </p>
       </div>
 
@@ -215,7 +215,7 @@
     const FOUNDER_PIN = "060709";
     let chatHistory = JSON.parse(localStorage.getItem("DYNAST_CHAT_MEMORY") || "[]");
     let stagedAction = null;
-    let isMuted = false;
+    let isMuted = false; // Unmuted by default so audio plays immediately
     let continuousLiveMode = false;
     let currentState = "ONLINE"; // ONLINE | LISTENING | THINKING | SPEAKING
 
@@ -242,7 +242,7 @@
       if (!audioCtx && AudioCtx) {
         audioCtx = new AudioCtx({ sampleRate: 24000 });
         gainNode = audioCtx.createGain();
-        gainNode.gain.setValueAtTime(2.2, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(2.8, audioCtx.currentTime); // High loudspeaker boost
 
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 128;
@@ -267,6 +267,9 @@
       document.getElementById("lockScreen").classList.add("hidden");
       document.getElementById("mainScreen").classList.remove("hidden");
       startOrbAnimation();
+
+      // Trigger test greeting on unlock
+      sendCommand("Hello DYNAST");
     }
 
     function toggleHub() {
@@ -422,7 +425,7 @@
               if (abs > maxPeak) maxPeak = abs;
             }
 
-            const boost = (0.98 / maxPeak) * 2.2;
+            const boost = (0.98 / maxPeak) * 2.5;
             for (let i = 0; i < sampleCount; i++) {
               float32[i] = Math.tanh(float32[i] * boost);
             }
