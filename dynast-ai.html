@@ -132,7 +132,7 @@
         <canvas id="orbCanvas" width="320" height="320" class="w-[260px] h-[260px] sm:w-[290px] sm:h-[290px]"></canvas>
         <div class="absolute pointer-events-none flex flex-col items-center justify-center">
           <span id="orbCenterLabel" class="text-[10px] font-mono-tech tracking-[0.28em] text-amber-200/80 uppercase">Tap to Speak</span>
-          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/80 mt-1">GEMINI ORION (ORUS)</span>
+          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/80 mt-1">GEMINI ORION</span>
         </div>
       </div>
 
@@ -219,7 +219,6 @@
     let continuousLiveMode = false;
     let currentState = "ONLINE"; // ONLINE | LISTENING | THINKING | SPEAKING
 
-    // Web Audio API Context + Studio Pre-Amp & Frequency Analyser
     let audioCtx = null;
     let analyser = null;
     let gainNode = null;
@@ -243,7 +242,7 @@
       if (!audioCtx && AudioCtx) {
         audioCtx = new AudioCtx({ sampleRate: 24000 });
         gainNode = audioCtx.createGain();
-        gainNode.gain.setValueAtTime(1.8, audioCtx.currentTime); // Extra Hardware Pre-Amp Boost
+        gainNode.gain.setValueAtTime(2.2, audioCtx.currentTime);
 
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 128;
@@ -295,8 +294,8 @@
       const btn = document.getElementById("muteBtn");
       btn.textContent = isMuted ? "ORION: MUTED" : "ORION: MAX";
       btn.className = isMuted
-        ? "glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-rose-400"
-        : "glass-pill px-3 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300 border border-amber-400/40";
+        ? "glass-pill px-3.5 py-1.5 rounded-full text-[10px] font-mono-tech text-rose-400"
+        : "glass-pill px-3.5 py-1.5 rounded-full text-[10px] font-mono-tech text-amber-300 border border-amber-400/40";
     }
 
     function stopListening() {
@@ -335,7 +334,7 @@
       const latencyLabel = document.getElementById("latencyLabel");
 
       if (latencyMs) {
-        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • GEMINI ORION`;
+        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • ORION VOICE`;
       }
 
       if (state === "LISTENING") {
@@ -343,9 +342,9 @@
         statusDot.className = "w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_12px_#38bdf8] animate-ping";
         centerLabel.textContent = "Listening...";
       } else if (state === "THINKING") {
-        statusText.textContent = "SYNTHESIZING ORION";
+        statusText.textContent = "THINKING";
         statusDot.className = "w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_12px_#c084fc] animate-pulse";
-        centerLabel.textContent = "Synthesizing...";
+        centerLabel.textContent = "Thinking...";
       } else if (state === "SPEAKING") {
         statusText.textContent = "ORION SPEAKING";
         statusDot.className = "w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_12px_#fbbf24] animate-pulse";
@@ -374,16 +373,14 @@
         }
         el.textContent += (i === 0 ? "" : " ") + words[i];
         i++;
-      }, 36);
+      }, 25);
     }
 
-    // DSP Peak Normalization & Soft-Saturation Booster for 24kHz Gemini Orion PCM Audio
     async function playOrionAudioAndText(replyText, audioBase64, mimeType, elapsedMs) {
       stopListening();
       stopSpeaking();
       initAudioEngine();
 
-      // If audioBase64 wasn't attached on the first pass, request Orion audio once before revealing text
       if (!isMuted && !audioBase64) {
         try {
           const retryRes = await fetch("/api/dynast", {
@@ -417,7 +414,6 @@
             const view = new DataView(bytes.buffer, bytes.byteOffset, evenLen);
             const float32 = new Float32Array(sampleCount);
 
-            // 1. Find maximum peak in the raw Gemini PCM stream
             let maxPeak = 0.001;
             for (let i = 0; i < sampleCount; i++) {
               const s = view.getInt16(i * 2, true) / 32768.0;
@@ -426,7 +422,6 @@
               if (abs > maxPeak) maxPeak = abs;
             }
 
-            // 2. Normalize peak to full scale and apply 2.2x soft-saturation vocal loudness boost
             const boost = (0.98 / maxPeak) * 2.2;
             for (let i = 0; i < sampleCount; i++) {
               float32[i] = Math.tanh(float32[i] * boost);
@@ -451,7 +446,6 @@
             }
           };
 
-          // Reveal text and start Gemini Orion voice on the exact same millisecond
           setVisualStatus("SPEAKING", elapsedMs);
           animateReplyText(replyText);
           source.start(0);
@@ -618,7 +612,6 @@
       recognition.start();
     }
 
-    // 60FPS FLUID PLASMA ORB DRIVEN BY LIVE WEB AUDIO FREQUENCIES
     function startOrbAnimation() {
       const canvas = document.getElementById("orbCanvas");
       const ctx = canvas.getContext("2d");
