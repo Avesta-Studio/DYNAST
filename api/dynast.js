@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // STRICT OFFICIAL GEMINI LIVE ORION ("Orus") AUDIO GENERATOR
+  // LOCKED EXCLUSIVELY TO GEMINI 3.8 FLASH FOR AUDIO GENERATION
   async function generateGeminiOrionAudio(rawSpeech) {
     const cleanSpeech = String(rawSpeech || "")
       .replace(/[*#_`~>]/g, "")
@@ -90,75 +90,57 @@ export default async function handler(req, res) {
       .trim()
       .slice(0, 600);
 
-    if (!cleanSpeech) return { audioDataUri: null, voiceSource: "GEMINI ORION (ORUS)" };
+    if (!cleanSpeech) return { audioDataUri: null, voiceSource: "GEMINI 3.8 FLASH • ORION" };
 
-    const baseTtsModels = [
-      "gemini-2.5-flash-preview-tts",
-      "gemini-2.0-flash-exp",
-      "gemini-2.0-flash"
-    ];
-    const ttsModels = cachedTtsModel
-      ? [cachedTtsModel, ...baseTtsModels.filter((m) => m !== cachedTtsModel)]
-      : baseTtsModels;
-
-    for (const ttsModel of ttsModels) {
-      try {
-        const ttsRes = await fetchFast(
-          `https://generativelanguage.googleapis.com/v1beta/models/${ttsModel}:generateContent`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": GEMINI_API_KEY
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      text: ttsModel.includes("tts")
-                        ? `Say naturally in a warm, confident, conversational tone: ${cleanSpeech}`
-                        : `Read the following text aloud verbatim without adding any extra words: "${cleanSpeech}"`
-                    }
-                  ]
-                }
-              ],
-              generationConfig: {
-                responseModalities: ["AUDIO"],
-                speechConfig: {
-                  voiceConfig: {
-                    prebuiltVoiceConfig: {
-                      voiceName: "Orus" // Official Gemini Live Orion voice ID
-                    }
+    try {
+      const ttsRes = await fetchFast(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: `Say naturally in a warm, confident, conversational tone: ${cleanSpeech}`
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: "Orus" // Official Gemini Live Orion voice ID
                   }
                 }
               }
-            })
-          },
-          5500
-        );
+            }
+          })
+        },
+        5500
+      );
 
-        if (ttsRes.ok) {
-          const ttsData = await ttsRes.json();
-          const audioPart = ttsData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-          if (audioPart?.inlineData?.data) {
-            cachedTtsModel = ttsModel;
-            const wavBase64 = pcm16ToWavBase64(audioPart.inlineData.data, 24000);
-            return {
-              audioDataUri: `data:audio/wav;base64,${wavBase64}`,
-              voiceSource: "GEMINI ORION (ORUS)"
-            };
-          }
-        } else if (cachedTtsModel === ttsModel) {
-          cachedTtsModel = null;
+      if (ttsRes.ok) {
+        const ttsData = await ttsRes.json();
+        const audioPart = ttsData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+        if (audioPart?.inlineData?.data) {
+          const wavBase64 = pcm16ToWavBase64(audioPart.inlineData.data, 24000);
+          return {
+            audioDataUri: `data:audio/wav;base64,${wavBase64}`,
+            voiceSource: "GEMINI 3.8 FLASH • ORION"
+          };
         }
-      } catch (e) {
-        if (cachedTtsModel === ttsModel) cachedTtsModel = null;
       }
-    }
+    } catch (e) {}
 
-    return { audioDataUri: null, voiceSource: "GEMINI ORION (ORUS)" };
+    return { audioDataUri: null, voiceSource: "GEMINI 3.8 FLASH • ORION" };
   }
 
   if (ttsOnly && ttsText) {
@@ -166,15 +148,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ audioDataUri, voiceSource });
   }
 
-  const TEXT_MODEL_CANDIDATES = [
-    "gemini-3.7-flash",
-    "gemini-3.7-flash-preview",
-    "gemini-3.5-flash",
-    "gemini-3.5-flash-preview",
-    "gemini-3-flash-preview",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash"
-  ];
+  // LOCKED EXCLUSIVELY TO GEMINI 3.8 FLASH FOR TEXT GENERATION
+  const TEXT_MODEL_CANDIDATES = ["gemini-3.8-flash"];
 
   // 1. EXECUTE CONFIRMED GITHUB UPDATE
   if (confirmAction && confirmAction.type === "github_update") {
@@ -369,47 +344,36 @@ VOCAL CONVERSATION RULES:
   }
 
   const isCodeEdit = Boolean(targetFile);
-  const modelsToTry = cachedTextModel
-    ? [cachedTextModel, ...TEXT_MODEL_CANDIDATES.filter((m) => m !== cachedTextModel)]
-    : TEXT_MODEL_CANDIDATES;
-
   let data = null;
-  let usedModel = null;
+  let usedModel = "gemini-3.8-flash";
   let lastErrorMsg = "Unable to reach Gemini text model.";
 
-  for (const modelName of modelsToTry) {
-    try {
-      const response = await fetchFast(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents,
-            generationConfig: {
-              temperature: 0.5,
-              maxOutputTokens: isCodeEdit ? 16384 : 260
-            }
-          })
-        },
-        isCodeEdit ? 22000 : 3800
-      );
+  try {
+    const response = await fetchFast(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: {
+            temperature: 0.5,
+            maxOutputTokens: isCodeEdit ? 16384 : 260
+          }
+        })
+      },
+      isCodeEdit ? 22000 : 3800
+    );
 
-      const resJson = await response.json();
-      if (response.ok && resJson?.candidates?.[0]?.content?.parts) {
-        data = resJson;
-        usedModel = modelName;
-        cachedTextModel = modelName;
-        break;
-      } else {
-        lastErrorMsg = resJson?.error?.message || JSON.stringify(resJson);
-        if (cachedTextModel === modelName) cachedTextModel = null;
-      }
-    } catch (err) {
-      lastErrorMsg = err.message;
-      if (cachedTextModel === modelName) cachedTextModel = null;
+    const resJson = await response.json();
+    if (response.ok && resJson?.candidates?.[0]?.content?.parts) {
+      data = resJson;
+    } else {
+      lastErrorMsg = resJson?.error?.message || JSON.stringify(resJson);
     }
+  } catch (err) {
+    lastErrorMsg = err.message;
   }
 
   if (!data) {
