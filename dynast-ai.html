@@ -67,7 +67,7 @@
     </div>
 
     <h1 class="text-2xl tracking-[0.4em] font-brand text-amber-300 mb-1">DYNAST</h1>
-    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">GEMINI ORION VOICE CHAT</p>
+    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">GEMINI 3.7 FLASH • ORION AI</p>
 
     <div class="w-full glass-panel rounded-3xl p-6 shadow-2xl">
       <input
@@ -136,7 +136,7 @@
         <canvas id="orbCanvas" width="360" height="360" class="w-[300px] h-[300px] sm:w-[340px] sm:h-[340px]"></canvas>
         <div class="absolute pointer-events-none flex flex-col items-center justify-center">
           <span id="orbCenterLabel" class="text-[10px] font-mono-tech tracking-[0.3em] text-amber-200/90 uppercase drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]">Tap to Speak</span>
-          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/85 mt-1 tracking-wider">GEMINI ORION (ORUS)</span>
+          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/85 mt-1 tracking-wider">GEMINI 3.7 FLASH • ORION (ORUS)</span>
         </div>
       </div>
 
@@ -144,7 +144,7 @@
 
       <div class="w-full max-w-md px-3 text-center float-anim">
         <p id="replyText" class="text-base sm:text-lg font-light text-amber-50/95 leading-relaxed tracking-wide max-h-40 overflow-y-auto px-2">
-          Gemini Orion voice pack is locked and ready. Tap the core or type below to talk.
+          Gemini 3.7 Flash and Orion voice pack are locked and ready. Tap the core or type below to talk.
         </p>
       </div>
 
@@ -470,7 +470,7 @@
         }
         el.textContent += (i === 0 ? "" : " ") + words[i];
         i++;
-      }, 32);
+      }, 28);
     }
 
     async function playOrionResponse(replyText, audioDataUri, voiceSource, elapsedMs) {
@@ -504,7 +504,7 @@
         player.onended = () => {
           setVisualStatus("ONLINE", elapsedMs, "GEMINI ORION (ORUS)");
           if (continuousLiveMode) {
-            setTimeout(() => startListening(), 280);
+            setTimeout(() => startListening(), 250);
           }
         };
 
@@ -723,7 +723,7 @@
           lightningRGB = "233, 213, 255";
         }
 
-        const baseRadius = 82 + audioEnergy * 34; // Larger base radius for futuristic presence
+        const baseRadius = 82 + audioEnergy * 34;
 
         // Outer Ambient Glow
         const glowGrad = ctx.createRadialGradient(cx, cy, baseRadius * 0.3, cx, cy, baseRadius * 2.1);
@@ -776,7 +776,6 @@
             let curY = cy + Math.sin(startAngle) * (baseRadius * 0.4);
             ctx.moveTo(curX, curY);
 
-            // Jagged lightning segments
             const segments = 5;
             const targetX = cx + Math.cos(endAngle) * (baseRadius * 1.15);
             const targetY = cy + Math.sin(endAngle) * (baseRadius * 1.15);
