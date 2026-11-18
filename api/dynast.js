@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // STRICT OFFICIAL GEMINI LIVE ORION ("Orus") AUDIO GENERATOR (CACHED FOR MAX SPEED)
+  // STRICT OFFICIAL GEMINI LIVE ORION ("Orus") AUDIO GENERATOR
   async function generateGeminiOrionAudio(rawSpeech) {
     const cleanSpeech = String(rawSpeech || "")
       .replace(/[*#_`~>]/g, "")
@@ -166,7 +166,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ audioDataUri, voiceSource });
   }
 
-  // PRIORITIZE GEMINI 3.7 & 3.5 FLASH WITH ULTRA-FAST FALLBACKS
   const TEXT_MODEL_CANDIDATES = [
     "gemini-3.7-flash",
     "gemini-3.7-flash-preview",
@@ -340,7 +339,7 @@ ${fileCode ? `\nSOURCE CODE OF ${targetFile}:\n${fileCode.slice(0, 28000)}` : ""
 VOCAL CONVERSATION RULES:
 1. Speak like a natural, articulate human in real-time voice chat using smooth rhythm and contractions ("I'm", "we've", "it's").
 2. Do NOT repeat the founder's name ("Hanzalah") at the end of sentences or in normal replies—only say his name if he explicitly asks who he is.
-3. Keep spoken answers concise and punchy (1 to 2 sentences) with zero markdown symbols (* or #).
+3. Keep spoken answers concise and complete (1 to 2 complete sentences ending with punctuation). Zero markdown symbols (* or #).
 4. If asked to edit or update a website file, include the complete updated code at the very end wrapped in <GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"...","commitMessage":"...","newContent":"..."}</GITHUB_UPDATE>.`;
 
   const contents = [];
@@ -390,7 +389,7 @@ VOCAL CONVERSATION RULES:
             contents,
             generationConfig: {
               temperature: 0.5,
-              maxOutputTokens: isCodeEdit ? 16384 : 180
+              maxOutputTokens: isCodeEdit ? 16384 : 260
             }
           })
         },
