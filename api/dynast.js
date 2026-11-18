@@ -1,4 +1,5 @@
 let cachedTextModel = null;
+let cachedTtsModel = null;
 
 // Safely wraps raw 16-bit 24kHz Mono PCM from Gemini "Orus" (Orion) into a standard playable WAV file
 function pcm16ToWavBase64(pcmBase64, sampleRate = 24000) {
@@ -80,7 +81,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // STRICT OFFICIAL GEMINI LIVE ORION ("Orus") AUDIO GENERATOR
+  // STRICT OFFICIAL GEMINI LIVE ORION ("Orus") AUDIO GENERATOR (CACHED FOR MAX SPEED)
   async function generateGeminiOrionAudio(rawSpeech) {
     const cleanSpeech = String(rawSpeech || "")
       .replace(/[*#_`~>]/g, "")
@@ -91,11 +92,14 @@ export default async function handler(req, res) {
 
     if (!cleanSpeech) return { audioDataUri: null, voiceSource: "GEMINI ORION (ORUS)" };
 
-    const ttsModels = [
+    const baseTtsModels = [
       "gemini-2.5-flash-preview-tts",
       "gemini-2.0-flash-exp",
       "gemini-2.0-flash"
     ];
+    const ttsModels = cachedTtsModel
+      ? [cachedTtsModel, ...baseTtsModels.filter((m) => m !== cachedTtsModel)]
+      : baseTtsModels;
 
     for (const ttsModel of ttsModels) {
       try {
@@ -114,7 +118,7 @@ export default async function handler(req, res) {
                   parts: [
                     {
                       text: ttsModel.includes("tts")
-                        ? `Say naturally in a warm, confident conversational tone: ${cleanSpeech}`
+                        ? `Say naturally in a warm, confident, conversational tone: ${cleanSpeech}`
                         : `Read the following text aloud verbatim without adding any extra words: "${cleanSpeech}"`
                     }
                   ]
@@ -132,21 +136,26 @@ export default async function handler(req, res) {
               }
             })
           },
-          6500
+          5500
         );
 
         if (ttsRes.ok) {
           const ttsData = await ttsRes.json();
           const audioPart = ttsData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
           if (audioPart?.inlineData?.data) {
+            cachedTtsModel = ttsModel;
             const wavBase64 = pcm16ToWavBase64(audioPart.inlineData.data, 24000);
             return {
               audioDataUri: `data:audio/wav;base64,${wavBase64}`,
               voiceSource: "GEMINI ORION (ORUS)"
             };
           }
+        } else if (cachedTtsModel === ttsModel) {
+          cachedTtsModel = null;
         }
-      } catch (e) {}
+      } catch (e) {
+        if (cachedTtsModel === ttsModel) cachedTtsModel = null;
+      }
     }
 
     return { audioDataUri: null, voiceSource: "GEMINI ORION (ORUS)" };
@@ -157,11 +166,15 @@ export default async function handler(req, res) {
     return res.status(200).json({ audioDataUri, voiceSource });
   }
 
+  // PRIORITIZE GEMINI 3.7 & 3.5 FLASH WITH ULTRA-FAST FALLBACKS
   const TEXT_MODEL_CANDIDATES = [
-    "gemini-2.0-flash",
+    "gemini-3.7-flash",
+    "gemini-3.7-flash-preview",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-preview",
     "gemini-3-flash-preview",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash"
+    "gemini-2.5-flash",
+    "gemini-2.0-flash"
   ];
 
   // 1. EXECUTE CONFIRMED GITHUB UPDATE
@@ -239,7 +252,7 @@ export default async function handler(req, res) {
     };
     try {
       const knownTables = ["orders", "inventory"];
-      const schemaRes = await fetchFast(`${SUPABASE_URL}/rest/v1/`, { headers: supaHeaders }, 1500);
+      const schemaRes = await fetchFast(`${SUPABASE_URL}/rest/v1/`, { headers: supaHeaders }, 1200);
       let tables = [...knownTables];
       if (schemaRes.ok) {
         const schema = await schemaRes.json();
@@ -256,7 +269,7 @@ export default async function handler(req, res) {
             const r = await fetchFast(
               `${SUPABASE_URL}/rest/v1/${t}?select=*&limit=10`,
               { headers: supaHeaders },
-              1400
+              1200
             );
             if (r.ok) snapshot[t] = await r.json();
           } catch (e) {}
@@ -273,11 +286,11 @@ export default async function handler(req, res) {
         const r = await fetchFast(
           `https://api.github.com/repos/${GITHUB_REPO}/contents/${file}`,
           { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3.raw" } },
-          1800
+          1600
         );
         if (r.ok) return await r.text();
       }
-      const raw = await fetchFast(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${file}`, {}, 1800);
+      const raw = await fetchFast(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${file}`, {}, 1600);
       if (raw.ok) return await raw.text();
     } catch (e) {}
     return null;
@@ -287,7 +300,7 @@ export default async function handler(req, res) {
     try {
       const cleaned = queryText.replace(/[^a-zA-Z0-9 ]/g, " ").trim() || "India business technology";
       const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(cleaned)}&hl=en-IN&gl=IN&ceid=IN:en`;
-      const res = await fetchFast(rssUrl, {}, 1500);
+      const res = await fetchFast(rssUrl, {}, 1300);
       if (!res.ok) return null;
       const xml = await res.text();
       const items = [...xml.matchAll(/<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?<\/item>/g)]
@@ -376,12 +389,12 @@ VOCAL CONVERSATION RULES:
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents,
             generationConfig: {
-              temperature: 0.55,
-              maxOutputTokens: isCodeEdit ? 16384 : 220
+              temperature: 0.5,
+              maxOutputTokens: isCodeEdit ? 16384 : 180
             }
           })
         },
-        isCodeEdit ? 24000 : 5000
+        isCodeEdit ? 22000 : 3800
       );
 
       const resJson = await response.json();
@@ -396,6 +409,7 @@ VOCAL CONVERSATION RULES:
       }
     } catch (err) {
       lastErrorMsg = err.message;
+      if (cachedTextModel === modelName) cachedTextModel = null;
     }
   }
 
@@ -423,6 +437,7 @@ VOCAL CONVERSATION RULES:
           reply: cleanReply,
           audioDataUri,
           voiceSource,
+          modelUsed: usedModel,
           pendingAction: {
             type: "github_update",
             filePath: parsed.filePath,
