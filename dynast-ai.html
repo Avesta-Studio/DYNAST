@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>DYNAST — Gemini Orion Voice AI</title>
+  <title>DYNAST — Orion Voice AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -67,7 +67,7 @@
     </div>
 
     <h1 class="text-2xl tracking-[0.4em] font-brand text-amber-300 mb-1">DYNAST</h1>
-    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">GEMINI 3.7 FLASH • ORION AI</p>
+    <p class="text-[10px] font-mono-tech tracking-[0.28em] text-neutral-400 mb-8">ORION VOICE CHAT</p>
 
     <div class="w-full glass-panel rounded-3xl p-6 shadow-2xl">
       <input
@@ -136,7 +136,7 @@
         <canvas id="orbCanvas" width="360" height="360" class="w-[300px] h-[300px] sm:w-[340px] sm:h-[340px]"></canvas>
         <div class="absolute pointer-events-none flex flex-col items-center justify-center">
           <span id="orbCenterLabel" class="text-[10px] font-mono-tech tracking-[0.3em] text-amber-200/90 uppercase drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]">Tap to Speak</span>
-          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/85 mt-1 tracking-wider">GEMINI 3.7 FLASH • ORION (ORUS)</span>
+          <span id="latencyLabel" class="text-[9px] font-mono-tech text-amber-400/85 mt-1 tracking-wider">DYNAST AI • ORION (ORUS)</span>
         </div>
       </div>
 
@@ -144,7 +144,7 @@
 
       <div class="w-full max-w-md px-3 text-center float-anim">
         <p id="replyText" class="text-base sm:text-lg font-light text-amber-50/95 leading-relaxed tracking-wide max-h-40 overflow-y-auto px-2">
-          Gemini 3.7 Flash and Orion voice pack are locked and ready. Tap the core or type below to talk.
+          Orion voice pack is locked and ready. Tap the core or type below to talk.
         </p>
       </div>
 
@@ -237,7 +237,7 @@
     chatHistory = chatHistory
       .filter((item) => {
         const t = String(item.text || "").toLowerCase();
-        return !t.includes("audio channel") && !t.includes("quota") && !t.includes("gemini api error") && !t.includes("no longer available");
+        return !t.includes("audio channel") && !t.includes("quota") && !t.includes("api error") && !t.includes("no longer available");
       })
       .map((item) => ({
         role: item.role,
@@ -431,7 +431,7 @@
       const latencyLabel = document.getElementById("latencyLabel");
 
       if (latencyMs) {
-        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • ${voiceSource || "GEMINI ORION (ORUS)"}`;
+        latencyLabel.textContent = `${(latencyMs / 1000).toFixed(1)}s • ${voiceSource || "DYNAST AI • ORION"}`;
       }
 
       if (state === "LISTENING") {
@@ -479,7 +479,7 @@
 
       if (isMuted || !audioDataUri) {
         animateReplyText(replyText);
-        setVisualStatus("ONLINE", elapsedMs, "GEMINI ORION (ORUS)");
+        setVisualStatus("ONLINE", elapsedMs, "DYNAST AI • ORION");
         if (continuousLiveMode) {
           setTimeout(() => startListening(), 400);
         }
@@ -497,12 +497,12 @@
         player.src = audioDataUri;
 
         player.onplay = () => {
-          setVisualStatus("SPEAKING", elapsedMs, "GEMINI ORION (ORUS)");
+          setVisualStatus("SPEAKING", elapsedMs, "DYNAST AI • ORION");
           animateReplyText(replyText);
         };
 
         player.onended = () => {
-          setVisualStatus("ONLINE", elapsedMs, "GEMINI ORION (ORUS)");
+          setVisualStatus("ONLINE", elapsedMs, "DYNAST AI • ORION");
           if (continuousLiveMode) {
             setTimeout(() => startListening(), 250);
           }
@@ -510,14 +510,14 @@
 
         player.onerror = () => {
           animateReplyText(replyText);
-          setVisualStatus("ONLINE", elapsedMs, "GEMINI ORION (ORUS)");
+          setVisualStatus("ONLINE", elapsedMs, "DYNAST AI • ORION");
         };
 
         const playPromise = player.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
             animateReplyText(replyText);
-            setVisualStatus("ONLINE", elapsedMs, "GEMINI ORION (ORUS)");
+            setVisualStatus("ONLINE", elapsedMs, "DYNAST AI • ORION");
           });
         }
       }
