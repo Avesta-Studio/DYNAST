@@ -1,4 +1,7 @@
-// Safely wraps raw 16-bit 24kHz Mono PCM from Orion ("Orus") into a standard playable WAV file
+let cachedTextModel = null;
+let cachedTtsModel = null;
+
+// Safely wraps raw 16-bit 24kHz Mono PCM from Gemini "Orus" (Orion) into a standard playable WAV file
 function pcm16ToWavBase64(pcmBase64, sampleRate = 24000) {
   const rawBuffer = Buffer.from(pcmBase64, "base64");
   const evenByteLength = rawBuffer.length - (rawBuffer.length % 2);
@@ -39,8 +42,6 @@ function pcm16ToWavBase64(pcmBase64, sampleRate = 24000) {
   return Buffer.concat([wavHeader, boostedPcm]).toString("base64");
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json");
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -53,7 +54,7 @@ export default async function handler(req, res) {
     ttsText = ""
   } = req.body || {};
 
-  const API_KEY = (process.env.GEMINI_API_KEY || "").trim();
+  const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
   const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || "").trim();
   const GITHUB_REPO = "Avesta-Studio/DYNAST";
   const SUPABASE_URL =
@@ -63,11 +64,11 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_KEY ||
     ["sb_secret_Or2P7sjg", "Hbwv6PBGbhEztg_p6wCEMnu"].join("");
 
-  if (!API_KEY) {
-    return res.status(500).json({ error: "DYNAST Core: Missing API key in Vercel Environment Variables." });
+  if (!GEMINI_API_KEY) {
+    return res.status(500).json({ error: "Missing GEMINI_API_KEY in Vercel Environment Variables." });
   }
 
-  async function fetchFast(url, options = {}, timeoutMs = 10000) {
+  async function fetchFast(url, options = {}, timeoutMs = 4500) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -80,8 +81,8 @@ export default async function handler(req, res) {
     }
   }
 
-  // OFFICIAL ORION ("Orus") AUDIO GENERATOR WITH OVERLOAD FAILOVER
-  async function generateOrionAudio(rawSpeech) {
+  // STRICT OFFICIAL GEMINI LIVE ORION ("Orus") AUDIO GENERATOR (CACHED FOR MAX SPEED)
+  async function generateGeminiOrionAudio(rawSpeech) {
     const cleanSpeech = String(rawSpeech || "")
       .replace(/[*#_`~>]/g, "")
       .replace(/\bDYNAST\b/gi, "Dynast")
@@ -89,9 +90,16 @@ export default async function handler(req, res) {
       .trim()
       .slice(0, 600);
 
-    if (!cleanSpeech) return { audioDataUri: null, voiceSource: "DYNAST AI • ORION" };
+    if (!cleanSpeech) return { audioDataUri: null, voiceSource: "GEMINI ORION (ORUS)" };
 
-    const ttsModels = ["gemini-2.5-flash-preview-tts", "gemini-3.8-flash"];
+    const baseTtsModels = [
+      "gemini-2.5-flash-preview-tts",
+      "gemini-2.0-flash-exp",
+      "gemini-2.0-flash"
+    ];
+    const ttsModels = cachedTtsModel
+      ? [cachedTtsModel, ...baseTtsModels.filter((m) => m !== cachedTtsModel)]
+      : baseTtsModels;
 
     for (const ttsModel of ttsModels) {
       try {
@@ -101,7 +109,7 @@ export default async function handler(req, res) {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-goog-api-key": API_KEY
+              "x-goog-api-key": GEMINI_API_KEY
             },
             body: JSON.stringify({
               contents: [
@@ -121,43 +129,59 @@ export default async function handler(req, res) {
                 speechConfig: {
                   voiceConfig: {
                     prebuiltVoiceConfig: {
-                      voiceName: "Orus" // Official Orion voice ID
+                      voiceName: "Orus" // Official Gemini Live Orion voice ID
                     }
                   }
                 }
               }
             })
           },
-          10000
+          5500
         );
 
         if (ttsRes.ok) {
           const ttsData = await ttsRes.json();
           const audioPart = ttsData?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
           if (audioPart?.inlineData?.data) {
+            cachedTtsModel = ttsModel;
             const wavBase64 = pcm16ToWavBase64(audioPart.inlineData.data, 24000);
             return {
               audioDataUri: `data:audio/wav;base64,${wavBase64}`,
-              voiceSource: "DYNAST AI • ORION"
+              voiceSource: "GEMINI ORION (ORUS)"
             };
           }
+        } else if (cachedTtsModel === ttsModel) {
+          cachedTtsModel = null;
         }
-      } catch (e) {}
+      } catch (e) {
+        if (cachedTtsModel === ttsModel) cachedTtsModel = null;
+      }
     }
 
-    return { audioDataUri: null, voiceSource: "DYNAST AI • ORION" };
+    return { audioDataUri: null, voiceSource: "GEMINI ORION (ORUS)" };
   }
 
   if (ttsOnly && ttsText) {
-    const { audioDataUri, voiceSource } = await generateOrionAudio(ttsText);
+    const { audioDataUri, voiceSource } = await generateGeminiOrionAudio(ttsText);
     return res.status(200).json({ audioDataUri, voiceSource });
   }
+
+  // PRIORITIZE GEMINI 3.7 & 3.5 FLASH WITH ULTRA-FAST FALLBACKS
+  const TEXT_MODEL_CANDIDATES = [
+    "gemini-3.7-flash",
+    "gemini-3.7-flash-preview",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-preview",
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash"
+  ];
 
   // 1. EXECUTE CONFIRMED GITHUB UPDATE
   if (confirmAction && confirmAction.type === "github_update") {
     try {
       if (!GITHUB_TOKEN) {
-        return res.status(400).json({ error: "DYNAST Core: Missing GITHUB_TOKEN in Vercel Environment Variables." });
+        return res.status(400).json({ error: "Missing GITHUB_TOKEN in Vercel Environment Variables." });
       }
       const { filePath, newContent, commitMessage } = confirmAction;
       const cleanPath = filePath.replace(/^\/+/, "");
@@ -166,7 +190,7 @@ export default async function handler(req, res) {
       const getRes = await fetchFast(
         ghUrl,
         { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json" } },
-        5000
+        4000
       );
       const fileData = getRes.ok ? await getRes.json() : {};
 
@@ -185,19 +209,19 @@ export default async function handler(req, res) {
             sha: fileData.sha
           })
         },
-        7000
+        5500
       );
 
       if (!putRes.ok) {
         const errText = await putRes.text();
-        return res.status(500).json({ error: `DYNAST Deployment Failed: ${errText}` });
+        return res.status(500).json({ error: `GitHub Push Failed: ${errText}` });
       }
 
       const replyMsg = `Done. The update to ${cleanPath} is now live on GitHub and deploying to dynast.co.in.`;
-      const { audioDataUri, voiceSource } = await generateOrionAudio(replyMsg);
+      const { audioDataUri, voiceSource } = await generateGeminiOrionAudio(replyMsg);
       return res.status(200).json({ reply: replyMsg, audioDataUri, voiceSource });
     } catch (err) {
-      return res.status(500).json({ error: "DYNAST Update Error: " + err.message });
+      return res.status(500).json({ error: "GitHub Update Error: " + err.message });
     }
   }
 
@@ -228,7 +252,7 @@ export default async function handler(req, res) {
     };
     try {
       const knownTables = ["orders", "inventory"];
-      const schemaRes = await fetchFast(`${SUPABASE_URL}/rest/v1/`, { headers: supaHeaders }, 1500);
+      const schemaRes = await fetchFast(`${SUPABASE_URL}/rest/v1/`, { headers: supaHeaders }, 1200);
       let tables = [...knownTables];
       if (schemaRes.ok) {
         const schema = await schemaRes.json();
@@ -245,7 +269,7 @@ export default async function handler(req, res) {
             const r = await fetchFast(
               `${SUPABASE_URL}/rest/v1/${t}?select=*&limit=10`,
               { headers: supaHeaders },
-              1500
+              1200
             );
             if (r.ok) snapshot[t] = await r.json();
           } catch (e) {}
@@ -262,11 +286,11 @@ export default async function handler(req, res) {
         const r = await fetchFast(
           `https://api.github.com/repos/${GITHUB_REPO}/contents/${file}`,
           { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3.raw" } },
-          2000
+          1600
         );
         if (r.ok) return await r.text();
       }
-      const raw = await fetchFast(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${file}`, {}, 2000);
+      const raw = await fetchFast(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${file}`, {}, 1600);
       if (raw.ok) return await raw.text();
     } catch (e) {}
     return null;
@@ -276,7 +300,7 @@ export default async function handler(req, res) {
     try {
       const cleaned = queryText.replace(/[^a-zA-Z0-9 ]/g, " ").trim() || "India business technology";
       const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(cleaned)}&hl=en-IN&gl=IN&ceid=IN:en`;
-      const res = await fetchFast(rssUrl, {}, 1800);
+      const res = await fetchFast(rssUrl, {}, 1300);
       if (!res.ok) return null;
       const xml = await res.text();
       const items = [...xml.matchAll(/<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?<\/item>/g)]
@@ -310,19 +334,18 @@ ECOSYSTEM ACCESS:
 - Bespoke Admin Panel: dynast.co.in/bespoke-admin (bespoke-admin.html)
 - Digital Concierge Card: dynast.co.in/card (card.html)
 ${dbData ? `\nLIVE SUPABASE DATABASE:\n${JSON.stringify(dbData)}` : ""}
-${googleLiveFeed ? `\nLIVE REAL-TIME NEWS:\n${googleLiveFeed}` : ""}
+${googleLiveFeed ? `\nLIVE GOOGLE REAL-TIME DATA:\n${googleLiveFeed}` : ""}
 ${fileCode ? `\nSOURCE CODE OF ${targetFile}:\n${fileCode.slice(0, 28000)}` : ""}
 
 VOCAL CONVERSATION RULES:
 1. Speak like a natural, articulate human in real-time voice chat using smooth rhythm and contractions ("I'm", "we've", "it's").
 2. Do NOT repeat the founder's name ("Hanzalah") at the end of sentences or in normal replies—only say his name if he explicitly asks who he is.
-3. Keep spoken answers concise and complete (1 to 2 complete sentences ending with punctuation). Zero markdown symbols (* or #).
-4. Never mention Google or Gemini; you are exclusively DYNAST.
-5. If asked to edit or update a website file, include the complete updated code at the very end wrapped in <GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"...","commitMessage":"...","newContent":"..."}</GITHUB_UPDATE>.`;
+3. Keep spoken answers concise and punchy (1 to 2 sentences) with zero markdown symbols (* or #).
+4. If asked to edit or update a website file, include the complete updated code at the very end wrapped in <GITHUB_UPDATE>{"filePath":"${targetFile || "index.html"}","summaryOfChanges":"...","commitMessage":"...","newContent":"..."}</GITHUB_UPDATE>.`;
 
   const contents = [];
   for (const h of chatHistory.slice(-6)) {
-    if (h && h.text && !String(h.text).includes("Error") && !String(h.text).includes("quota") && !String(h.text).includes("high demand")) {
+    if (h && h.text && !String(h.text).includes("Error") && !String(h.text).includes("quota")) {
       const cleanedHistoryText = String(h.text)
         .replace(/,\s*Hanzalah([.!?])/gi, "$1")
         .replace(/\bHanzalah,\s*/gi, "")
@@ -347,61 +370,51 @@ VOCAL CONVERSATION RULES:
   }
 
   const isCodeEdit = Boolean(targetFile);
-  const requestBody = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents,
-    generationConfig: {
-      temperature: 0.5,
-      maxOutputTokens: isCodeEdit ? 16384 : 260
-    }
-  });
-
-  // PRIMARY: gemini-3.8-flash (retried twice on 503/429 high demand) -> EMERGENCY FAILOVER: gemini-2.5-flash
-  const attemptPlan = [
-    { model: "gemini-3.8-flash", delayMs: 0 },
-    { model: "gemini-3.8-flash", delayMs: 750 },
-    { model: "gemini-2.5-flash", delayMs: 0 }
-  ];
+  const modelsToTry = cachedTextModel
+    ? [cachedTextModel, ...TEXT_MODEL_CANDIDATES.filter((m) => m !== cachedTextModel)]
+    : TEXT_MODEL_CANDIDATES;
 
   let data = null;
-  let lastStatus = 500;
+  let usedModel = null;
+  let lastErrorMsg = "Unable to reach Gemini text model.";
 
-  for (const step of attemptPlan) {
-    if (step.delayMs > 0) await sleep(step.delayMs);
+  for (const modelName of modelsToTry) {
     try {
       const response = await fetchFast(
-        `https://generativelanguage.googleapis.com/v1beta/models/${step.model}:generateContent`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": API_KEY },
-          body: requestBody
+          headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents,
+            generationConfig: {
+              temperature: 0.5,
+              maxOutputTokens: isCodeEdit ? 16384 : 180
+            }
+          })
         },
-        isCodeEdit ? 25000 : 12000
+        isCodeEdit ? 22000 : 3800
       );
 
-      lastStatus = response.status;
       const resJson = await response.json();
-
       if (response.ok && resJson?.candidates?.[0]?.content?.parts) {
         data = resJson;
+        usedModel = modelName;
+        cachedTextModel = modelName;
         break;
-      }
-
-      // Only retry or fail over on temporary high-demand / rate-limit / server spikes
-      if (![429, 500, 502, 503, 504].includes(response.status)) {
-        break;
+      } else {
+        lastErrorMsg = resJson?.error?.message || JSON.stringify(resJson);
+        if (cachedTextModel === modelName) cachedTextModel = null;
       }
     } catch (err) {
-      // Retry next attempt on transient network/timeout abort
+      lastErrorMsg = err.message;
+      if (cachedTextModel === modelName) cachedTextModel = null;
     }
   }
 
   if (!data) {
-    const busyMsg =
-      lastStatus === 503 || lastStatus === 429
-        ? "DYNAST servers are briefly busy. Tap the orb again in a moment."
-        : "DYNAST Core hit a temporary snag. Please try again.";
-    return res.status(503).json({ error: busyMsg });
+    return res.status(500).json({ error: `Gemini API Error: ${lastErrorMsg}` });
   }
 
   try {
@@ -419,11 +432,12 @@ VOCAL CONVERSATION RULES:
             .replace(/,\s*Hanzalah([.!?])/gi, "$1")
             .trim() || `I've prepared the update for ${parsed.filePath}. Tap Deploy below to push it live.`;
 
-        const { audioDataUri, voiceSource } = await generateOrionAudio(cleanReply);
+        const { audioDataUri, voiceSource } = await generateGeminiOrionAudio(cleanReply);
         return res.status(200).json({
           reply: cleanReply,
           audioDataUri,
           voiceSource,
+          modelUsed: usedModel,
           pendingAction: {
             type: "github_update",
             filePath: parsed.filePath,
@@ -436,14 +450,15 @@ VOCAL CONVERSATION RULES:
     }
 
     replyText = replyText.replace(/,\s*Hanzalah([.!?])$/i, "$1").trim() || "I'm online and ready.";
-    const { audioDataUri, voiceSource } = await generateOrionAudio(replyText);
+    const { audioDataUri, voiceSource } = await generateGeminiOrionAudio(replyText);
 
     return res.status(200).json({
       reply: replyText,
       audioDataUri,
-      voiceSource
+      voiceSource,
+      modelUsed: usedModel
     });
   } catch (err) {
-    return res.status(500).json({ error: "DYNAST Core encountered an unexpected error. Please try again." });
+    return res.status(500).json({ error: `Server Error: ${err.message}` });
   }
 }
