@@ -1,13 +1,14 @@
-let cachedTextModel = null;
 let cachedTtsModel = null;
-const failedModels = new Map(); // modelName -> timestamp
+const failedTtsModels = new Map();
 const FAIL_TTL_MS = 10 * 60 * 1000;
 
-function isModelCoolingDown(modelName) {
-  const failedAt = failedModels.get(modelName);
+const TEXT_MODEL = "gemini-3.8-flash";
+
+function isTtsCoolingDown(modelName) {
+  const failedAt = failedTtsModels.get(modelName);
   if (!failedAt) return false;
   if (Date.now() - failedAt > FAIL_TTL_MS) {
-    failedModels.delete(modelName);
+    failedTtsModels.delete(modelName);
     return false;
   }
   return true;
@@ -46,7 +47,6 @@ function pcm16ToWavBase64(pcmBase64, sampleRate = 24000) {
     if (abs > maxPeak) maxPeak = abs;
   }
 
-  // Noise-floor guard prevents boosting quiet hiss on mobile speakers/earbuds
   const effectivePeak = Math.max(maxPeak, 1400);
   const targetGain = Math.min(1.9, (28000 / effectivePeak) * 1.15);
   const boostedPcm = Buffer.allocUnsafe(evenByteLength);
@@ -61,7 +61,6 @@ function pcm16ToWavBase64(pcmBase64, sampleRate = 24000) {
   return Buffer.concat([wavHeader, boostedPcm]).toString("base64");
 }
 
-// Strips huge base64 images or long blobs from Supabase rows so analytics stay fast and within token limits
 function sanitizeValue(val) {
   if (typeof val === "string") {
     if (val.startsWith("data:image") || val.length > 260) {
@@ -69,22 +68,17 @@ function sanitizeValue(val) {
     }
     return val;
   }
-  if (Array.isArray(val)) {
-    return val.slice(0, 8).map(sanitizeValue);
-  }
+  if (Array.isArray(val)) return val.slice(0, 8).map(sanitizeValue);
   if (val && typeof val === "object") {
     const out = {};
-    for (const [k, v] of Object.entries(val)) {
-      out[k] = sanitizeValue(v);
-    }
+    for (const [k, v] of Object.entries(val)) out[k] = sanitizeValue(v);
     return out;
   }
   return val;
 }
 
-// Computes exact server-side metrics so DYNAST reports accurate Admin Panel numbers
 function summarizeTable(rows) {
-  if (!Array.isArray(rows)) return { count: 0, latest: [] };
+  if (!Array.isArray(rows)) return { totalRows: 0, latestRecords: [] };
 
   const statusCounts = {};
   const lowStock = [];
@@ -167,9 +161,7 @@ export default async function handler(req, res) {
   const providedPin = String(req.headers["x-dynast-pin"] || pin || "").trim();
 
   if (verifyPin) {
-    if (providedPin === FOUNDER_PIN) {
-      return res.status(200).json({ ok: true });
-    }
+    if (providedPin === FOUNDER_PIN) return res.status(200).json({ ok: true });
     return res.status(401).json({ error: "Invalid passcode." });
   }
 
@@ -197,7 +189,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing GEMINI_API_KEY in Vercel Environment Variables." });
   }
 
-  async function fetchFast(url, options = {}, timeoutMs = 6000) {
+  async function fetchFast(url, options = {}, timeoutMs = 8000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -210,7 +202,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // OFFICIAL ORION ("Orus") VOICE SYNTHESIS — SAME VOICE AS VOCAL CHAT
+  // OFFICIAL ORION ("Orus") VOICE SYNTHESIS
   async function generateOrionAudio(rawSpeech) {
     const cleanSpeech = String(rawSpeech || "")
       .replace(/[*#_`~>\[\]]/g, "")
@@ -226,7 +218,8 @@ export default async function handler(req, res) {
       process.env.GEMINI_TTS_MODEL,
       "gemini-2.5-flash-preview-tts",
       "gemini-2.5-pro-preview-tts",
-      "gemini-2.0-flash-exp"
+      "gemini-3.8-flash-preview-tts",
+      "gemini-3.8-flash"
     ].filter(Boolean);
 
     const ttsModels = cachedTtsModel
@@ -234,7 +227,7 @@ export default async function handler(req, res) {
       : baseTtsModels;
 
     for (const ttsModel of ttsModels) {
-      if (isModelCoolingDown(ttsModel) && ttsModel !== cachedTtsModel) continue;
+      if (isTtsCoolingDown(ttsModel) && ttsModel !== cachedTtsModel) continue;
 
       try {
         const ttsRes = await fetchFast(
@@ -253,7 +246,7 @@ export default async function handler(req, res) {
                     {
                       text: ttsModel.includes("tts")
                         ? `Speak calmly, warmly, and naturally: ${cleanSpeech}`
-                        : `Read aloud verbatim with a calm, refined tone: "${cleanSpeech}"`
+                        : `Read the following text aloud verbatim without adding any extra words: "${cleanSpeech}"`
                     }
                   ]
                 }
@@ -270,7 +263,7 @@ export default async function handler(req, res) {
               }
             })
           },
-          8500
+          9000
         );
 
         if (ttsRes.ok) {
@@ -286,7 +279,7 @@ export default async function handler(req, res) {
             };
           }
         } else {
-          if (ttsRes.status === 404 || ttsRes.status === 400) failedModels.set(ttsModel, Date.now());
+          if (ttsRes.status === 404 || ttsRes.status === 400) failedTtsModels.set(ttsModel, Date.now());
           if (cachedTtsModel === ttsModel) cachedTtsModel = null;
         }
       } catch (err) {
@@ -302,7 +295,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ audioDataUri, voiceSource });
   }
 
-  // 1. EXECUTE CONFIRMED GITHUB UPDATE (PROTECTED BY PIN)
+  // 1. EXECUTE CONFIRMED GITHUB UPDATE
   if (confirmAction && confirmAction.type === "github_update") {
     try {
       if (!GITHUB_TOKEN) {
@@ -513,12 +506,11 @@ ${
     : ""
 }`;
 
-  // Normalize chat history (supports both new "user"/"assistant" and legacy "Hanzalah"/"DYNAST")
   const contents = [];
   for (const h of (Array.isArray(chatHistory) ? chatHistory : []).slice(-8)) {
     if (!h || !h.text) continue;
     const raw = String(h.text).trim();
-    if (!raw || raw.includes("Error:") || raw.includes("quota")) continue;
+    if (!raw || raw.includes("Error:") || raw.includes("quota") || raw.includes("no longer available")) continue;
 
     const role = h.role === "user" || h.role === "Hanzalah" ? "user" : "model";
     if (contents.length === 0 && role === "model") continue;
@@ -536,20 +528,7 @@ ${
     contents.push({ role: "user", parts: [{ text: String(prompt).trim() }] });
   }
 
-  // Prioritizes gemini-3.8-flash first, with automatic instant fallback to live Flash models
-  const baseTextModels = [
-    process.env.GEMINI_TEXT_MODEL,
-    "gemini-3.8-flash",
-    "gemini-3-flash-preview",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash"
-  ].filter(Boolean);
-
-  const modelsToTry = cachedTextModel
-    ? [cachedTextModel, ...baseTextModels.filter((m) => m !== cachedTextModel)]
-    : baseTextModels;
-
-  async function invokeTextModel(modelName, useSearchTool, useZeroThinking, extraContext = "") {
+  async function callGemini38Flash(toolMode, extraContext = "") {
     const body = {
       systemInstruction: {
         parts: [{ text: extraContext ? `${systemPrompt}\n${extraContext}` : systemPrompt }]
@@ -557,19 +536,18 @@ ${
       contents,
       generationConfig: {
         temperature: 0.45,
-        maxOutputTokens: isCodeEdit ? 16384 : 650
+        maxOutputTokens: isCodeEdit ? 16384 : 2048
       }
     };
 
-    if (useZeroThinking && !isCodeEdit) {
-      body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    }
-    if (useSearchTool && !isCodeEdit) {
+    if (!isCodeEdit && toolMode === "snake") {
       body.tools = [{ google_search: {} }];
+    } else if (!isCodeEdit && toolMode === "camel") {
+      body.tools = [{ googleSearch: {} }];
     }
 
     const response = await fetchFast(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent`,
       {
         method: "POST",
         headers: {
@@ -578,7 +556,7 @@ ${
         },
         body: JSON.stringify(body)
       },
-      isCodeEdit ? 24000 : 12000
+      isCodeEdit ? 24000 : 14000
     );
 
     const resJson = await response.json().catch(() => ({}));
@@ -588,47 +566,29 @@ ${
   let data = null;
   let lastErrorMsg = "Unable to reach intelligence core.";
 
-  for (const modelName of modelsToTry) {
-    if (isModelCoolingDown(modelName) && modelName !== cachedTextModel) continue;
+  try {
+    // Attempt 1: models/gemini-3.8-flash with Google Search Grounding
+    let attempt = await callGemini38Flash(isCodeEdit ? "none" : "snake");
 
-    try {
-      // Attempt 1: Native Google Search Grounding + zero-thinking low latency
-      let { response, resJson } = await invokeTextModel(modelName, !isCodeEdit, !isCodeEdit);
-
-      // Attempt 2: If model rejects thinkingConfig or google_search with 400, retry cleanly
-      if (!response.ok && response.status === 400) {
-        const errMsg = String(resJson?.error?.message || "").toLowerCase();
-        if (errMsg.includes("thinking") || errMsg.includes("google_search") || errMsg.includes("tool")) {
-          const rssBackup = errMsg.includes("google_search") || errMsg.includes("tool")
-            ? await getFallbackGoogleNews(prompt)
-            : null;
-          const retryContext = rssBackup ? `LIVE WORLD FEED:\n${rssBackup}` : "";
-          const retry = await invokeTextModel(
-            modelName,
-            !errMsg.includes("google_search") && !errMsg.includes("tool") && !isCodeEdit,
-            !errMsg.includes("thinking") && !isCodeEdit,
-            retryContext
-          );
-          response = retry.response;
-          resJson = retry.resJson;
-        }
-      }
-
-      if (response.ok && resJson?.candidates?.[0]?.content?.parts) {
-        data = resJson;
-        cachedTextModel = modelName;
-        break;
-      } else {
-        lastErrorMsg = resJson?.error?.message || `HTTP ${response.status}`;
-        if (response.status === 404) {
-          failedModels.set(modelName, Date.now());
-        }
-        if (cachedTextModel === modelName) cachedTextModel = null;
-      }
-    } catch (err) {
-      lastErrorMsg = err.message;
-      if (cachedTextModel === modelName) cachedTextModel = null;
+    // Attempt 2: Retry with camelCase googleSearch if 400
+    if (!attempt.response.ok && attempt.response.status === 400 && !isCodeEdit) {
+      attempt = await callGemini38Flash("camel");
     }
+
+    // Attempt 3: Clean models/gemini-3.8-flash without tools + RSS fallback if tools rejected
+    if (!attempt.response.ok && attempt.response.status === 400 && !isCodeEdit) {
+      const rssBackup = await getFallbackGoogleNews(prompt);
+      const extra = rssBackup ? `LIVE WORLD NEWS FEED:\n${rssBackup}` : "";
+      attempt = await callGemini38Flash("none", extra);
+    }
+
+    if (attempt.response.ok && attempt.resJson?.candidates?.[0]?.content?.parts) {
+      data = attempt.resJson;
+    } else {
+      lastErrorMsg = attempt.resJson?.error?.message || `HTTP ${attempt.response.status}`;
+    }
+  } catch (err) {
+    lastErrorMsg = err.message;
   }
 
   if (!data) {
